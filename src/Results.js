@@ -90,6 +90,37 @@ class Results {
     scanDirectory(scanPath);
     return resultFiles;
   }
+
+  /**
+   * Gets all generated files (both fixed and result files) in a directory.
+   * @param {string} scanPath - Directory to scan for generated files
+   * @returns {Array} - Array of generated file paths
+   */
+  getAllGeneratedFiles(scanPath) {
+    const generatedFiles = [];
+    
+    const scanDirectory = (dirPath) => {
+      try {
+        const items = fs.readdirSync(dirPath, { withFileTypes: true });
+        
+        for (const item of items) {
+          const fullPath = path.join(dirPath, item.name);
+          
+          if (item.isDirectory()) {
+            scanDirectory(fullPath);
+          } else if (item.isFile() && 
+                    (item.name.endsWith('_BRK_result.json') || item.name.endsWith('_BRK_fixed.json'))) {
+            generatedFiles.push(fullPath);
+          }
+        }
+      } catch (err) {
+        logError(`Cannot scan directory ${dirPath}: ${err.message}`);
+      }
+    };
+    
+    scanDirectory(scanPath);
+    return generatedFiles;
+  }
 }
 
 module.exports = Results;

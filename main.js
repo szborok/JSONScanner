@@ -11,7 +11,10 @@ function parseArguments() {
     mode: config.app.autorun ? 'auto' : 'manual',
     projectPath: null,
     forceReprocess: false,
-    clearErrors: false
+    clearErrors: false,
+    cleanup: false,
+    cleanupStats: false,
+    cleanupInteractive: false
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -25,6 +28,15 @@ function parseArguments() {
         break;
       case '--auto':
         options.mode = 'auto';
+        break;
+      case '--cleanup':
+        options.cleanup = true;
+        break;
+      case '--cleanup-stats':
+        options.cleanupStats = true;
+        break;
+      case '--cleanup-interactive':
+        options.cleanupInteractive = true;
         break;
       case '--project':
         options.projectPath = args[i + 1];
@@ -56,6 +68,9 @@ Options:
   --mode <auto|manual> Override config mode setting
   --manual             Set mode to manual (shortcut for --mode manual)
   --auto               Set mode to auto (shortcut for --mode auto)
+  --cleanup            Delete all generated files (BRK_fixed.json and BRK_result.json)
+  --cleanup-stats      Show statistics about generated files without deleting
+  --cleanup-interactive Cleanup with confirmation prompt
   --project <path>     Scan specific project path (manual mode only)
   --force              Force reprocess even if result files exist
   --clear-errors       Clear fatal error markers before processing
@@ -75,6 +90,9 @@ Test Mode Information:
 Examples:
   node main.js --manual --project "path/to/project"
   node main.js --auto --force
+  node main.js --cleanup (removes all generated files)
+  node main.js --cleanup-stats (shows what would be deleted)
+  node main.js --cleanup-interactive (asks for confirmation)
   node main.js --clear-errors
   node main.js --manual (will prompt for path in production mode)
   `);
@@ -84,6 +102,26 @@ Examples:
 async function main() {
   try {
     const options = parseArguments();
+    
+    // Handle cleanup modes
+    if (options.cleanup || options.cleanupStats || options.cleanupInteractive) {
+      const CleanupService = require('./utils/CleanupService');
+      const cleanupService = new CleanupService();
+      
+      if (options.cleanupStats) {
+        Logger.logInfo('📊 Running cleanup statistics...');
+        await cleanupService.getCleanupStats();
+      } else if (options.cleanupInteractive) {
+        Logger.logInfo('🤝 Running interactive cleanup...');
+        await cleanupService.interactiveCleanup();
+      } else if (options.cleanup) {
+        Logger.logInfo('🧹 Starting cleanup mode...');
+        await cleanupService.cleanupGeneratedFiles();
+        Logger.logInfo('✅ Cleanup completed successfully');
+      }
+      
+      process.exit(0);
+    }
     
     Logger.logInfo('🚀 Starting JSON Scanner Application...');
     Logger.logInfo(`📝 Log file: ${Logger.getLogFilePath()}`);
