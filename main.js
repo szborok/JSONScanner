@@ -1,54 +1,55 @@
 // main.js
-const Executor = require('./src/Executor');
-const Logger = require('./utils/Logger');
-const UserManager = require('./utils/UserManager');
-const config = require('./config');
+const Executor = require("./src/Executor");
+const DataManager = require("./src/DataManager");
+const Logger = require("./utils/Logger");
+const UserManager = require("./utils/UserManager");
+const config = require("./config");
 
 // Parse command line arguments
 function parseArguments() {
   const args = process.argv.slice(2);
   const options = {
-    mode: config.app.autorun ? 'auto' : 'manual',
+    mode: config.app.autorun ? "auto" : "manual",
     projectPath: null,
     forceReprocess: false,
     clearErrors: false,
     cleanup: false,
     cleanupStats: false,
-    cleanupInteractive: false
+    cleanupInteractive: false,
   };
 
   for (let i = 0; i < args.length; i++) {
     switch (args[i]) {
-      case '--mode':
+      case "--mode":
         options.mode = args[i + 1];
         i++; // Skip next argument
         break;
-      case '--manual':
-        options.mode = 'manual';
+      case "--manual":
+        options.mode = "manual";
         break;
-      case '--auto':
-        options.mode = 'auto';
+      case "--auto":
+        options.mode = "auto";
         break;
-      case '--cleanup':
+      case "--cleanup":
         options.cleanup = true;
         break;
-      case '--cleanup-stats':
+      case "--cleanup-stats":
         options.cleanupStats = true;
         break;
-      case '--cleanup-interactive':
+      case "--cleanup-interactive":
         options.cleanupInteractive = true;
         break;
-      case '--project':
+      case "--project":
         options.projectPath = args[i + 1];
         i++; // Skip next argument
         break;
-      case '--force':
+      case "--force":
         options.forceReprocess = true;
         break;
-      case '--clear-errors':
+      case "--clear-errors":
         options.clearErrors = true;
         break;
-      case '--help':
+      case "--help":
         showHelp();
         process.exit(0);
         break;
@@ -77,7 +78,9 @@ Options:
   --help               Show this help message
 
 Test Mode Information:
-  Test mode is currently ${config.app.testMode ? 'ENABLED' : 'DISABLED'} (configured in config.js)
+  Test mode is currently ${
+    config.app.testMode ? "ENABLED" : "DISABLED"
+  } (configured in config.js)
   
   AUTO mode paths:
     - Test mode: ${config.paths.test.testDataPathAuto}
@@ -100,73 +103,100 @@ Examples:
 
 // Start the JSON scanner application
 async function main() {
+  let dataManager = null;
+
   try {
     const options = parseArguments();
-    
+
     // Handle cleanup modes
     if (options.cleanup || options.cleanupStats || options.cleanupInteractive) {
-      const CleanupService = require('./utils/CleanupService');
+      const CleanupService = require("./utils/CleanupService");
       const cleanupService = new CleanupService();
-      
+
       if (options.cleanupStats) {
-        Logger.logInfo('📊 Running cleanup statistics...');
+        Logger.logInfo("📊 Running cleanup statistics...");
         await cleanupService.getCleanupStats();
       } else if (options.cleanupInteractive) {
-        Logger.logInfo('🤝 Running interactive cleanup...');
+        Logger.logInfo("🤝 Running interactive cleanup...");
         await cleanupService.interactiveCleanup();
       } else if (options.cleanup) {
-        Logger.logInfo('🧹 Starting cleanup mode...');
+        Logger.logInfo("🧹 Starting cleanup mode...");
         await cleanupService.cleanupGeneratedFiles();
-        Logger.logInfo('✅ Cleanup completed successfully');
+        Logger.logInfo("✅ Cleanup completed successfully");
       }
-      
+
       process.exit(0);
     }
-    
-    Logger.logInfo('🚀 Starting JSON Scanner Application...');
+
+    Logger.logInfo("🚀 Starting JSON Scanner Application...");
     Logger.logInfo(`📝 Log file: ${Logger.getLogFilePath()}`);
-    Logger.logInfo(`⚙️  Configuration: ${options.mode.toUpperCase()} mode, ${config.app.logLevel} level`);
-    Logger.logInfo(`📁 Data source: ${config.app.testMode ? 'Test data' : 'Production data'}`);
+    Logger.logInfo(
+      `⚙️  Configuration: ${options.mode.toUpperCase()} mode, ${
+        config.app.logLevel
+      } level`
+    );
+    Logger.logInfo(
+      `📁 Data source: ${config.app.testMode ? "Test data" : "Production data"}`
+    );
+
+    // Initialize data storage
+    Logger.logInfo("📊 Initializing data storage...");
+    dataManager = new DataManager();
+    await dataManager.initialize();
     // Override config if command line options provided
-    if (options.mode === 'manual') {
+    if (options.mode === "manual") {
       config.app.autorun = false;
-    } else if (options.mode === 'auto') {
+    } else if (options.mode === "auto") {
       config.app.autorun = true;
     }
 
-    Logger.logInfo(`🎯 Active scan path: ${config.getScanPath() || 'Will prompt user'}`);
-    
+    Logger.logInfo(
+      `🎯 Active scan path: ${config.getScanPath() || "Will prompt user"}`
+    );
+
     if (options.forceReprocess) {
       config.app.forceReprocess = true;
-      Logger.logInfo('🔄 Force reprocess enabled - will reprocess even if result files exist');
+      Logger.logInfo(
+        "🔄 Force reprocess enabled - will reprocess even if result files exist"
+      );
     }
-    
+
     // Initialize user manager for permission checking
     const userManager = new UserManager();
-    
+
     // Create executor with options
-    const executor = new Executor();
-    
+    const executor = new Executor(dataManager);
+
     await executor.start(options);
-    
-    Logger.logInfo('✅ Application started successfully');
+
+    Logger.logInfo("✅ Application started successfully");
   } catch (error) {
     Logger.logError(`❌ Application startup failed: ${error.message}`);
     Logger.logError(`Stack trace: ${error.stack}`);
     process.exit(1);
+  } finally {
+    // Cleanup data manager on exit
+    if (dataManager) {
+      try {
+        await dataManager.disconnect();
+        Logger.logInfo("📊 Data storage disconnected");
+      } catch (error) {
+        Logger.logError("Error disconnecting data storage:", error);
+      }
+    }
   }
 }
 
 // Handle graceful shutdown
-process.on('SIGINT', () => {
-  Logger.logInfo('🛑 Received shutdown signal (SIGINT)');
-  Logger.logInfo('👋 Application shutting down gracefully...');
+process.on("SIGINT", () => {
+  Logger.logInfo("🛑 Received shutdown signal (SIGINT)");
+  Logger.logInfo("👋 Application shutting down gracefully...");
   process.exit(0);
 });
 
-process.on('SIGTERM', () => {
-  Logger.logInfo('🛑 Received shutdown signal (SIGTERM)');
-  Logger.logInfo('👋 Application shutting down gracefully...');
+process.on("SIGTERM", () => {
+  Logger.logInfo("🛑 Received shutdown signal (SIGTERM)");
+  Logger.logInfo("👋 Application shutting down gracefully...");
   process.exit(0);
 });
 
@@ -175,4 +205,3 @@ main().catch((error) => {
   Logger.logError(`Stack trace: ${error.stack}`);
   process.exit(1);
 });
-

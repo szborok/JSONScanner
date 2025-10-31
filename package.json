@@ -1,5 +1,16 @@
 {
+  "name": "json-scanner",
+  "version": "1.0.0",
+  "description": "CNC JSON Scanner with dual storage support",
+  "main": "main.js",
   "dependencies": {
-    "chalk": "^4.1.2"
+    "chalk": "^4.1.2",
+    "mongodb": "^6.3.0"
+  },
+  "scripts": {
+    "start": "node main.js",
+    "auto": "node main.js --auto",
+    "manual": "node main.js --manual",
+    "cleanup": "node main.js --cleanup"
   }
 }

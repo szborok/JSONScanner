@@ -26,6 +26,47 @@ const config = {
     allowedOrigins: ["http://localhost:3000"],
   },
 
+  // Storage settings - supports both local and MongoDB
+  storage: {
+    type: process.env.STORAGE_TYPE || "auto", // 'local', 'mongodb', 'auto'
+    local: {
+      dataDirectory: process.env.LOCAL_DATA_DIR || path.join(__dirname, "data"),
+      backupDirectory: path.join(__dirname, "data", "backups"),
+      maxBackups: 10,
+    },
+  },
+
+  // MongoDB connection (when storage.type is 'mongodb' or 'auto')
+  mongodb: {
+    uri: process.env.MONGODB_URI || "mongodb://localhost:27017",
+    database: process.env.MONGODB_DATABASE || "cnc_scanner", // json_scanner database
+    options: {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+      maxPoolSize: 10,
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+    },
+  },
+
+  // Data retention settings (as per your requirements)
+  dataRetention: {
+    // json_scanner data - keep for 1 week as per your requirements
+    scanResults: {
+      retentionDays: 7,
+      autoCleanup: true,
+    },
+    analysisResults: {
+      retentionDays: 7,
+      autoCleanup: true,
+    },
+    // Backup collections with TTL
+    backupCollections: {
+      scan_results_backup: 7 * 24 * 60 * 60, // 7 days in seconds
+      analysis_backup: 7 * 24 * 60 * 60,
+    },
+  },
+
   // User roles and permissions
   permissions: {
     admin: {

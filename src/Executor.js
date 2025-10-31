@@ -12,11 +12,12 @@ const RuleEngine = require("./RuleEngine");
 const Results = require("./Results");
 
 class Executor {
-  constructor() {
+  constructor(dataManager = null) {
     this.scanner = new Scanner();
     this.analyzer = new Analyzer();
     this.ruleEngine = new RuleEngine();
-    this.results = new Results();
+    this.results = new Results(dataManager);
+    this.dataManager = dataManager;
     this.isRunning = false;
     this.manualQueue = [];
   }
@@ -32,8 +33,10 @@ class Executor {
     }
 
     this.isRunning = true;
-    
-    logInfo(`Executor started (${config.app.autorun ? "AUTO" : "MANUAL"} mode).`);
+
+    logInfo(
+      `Executor started (${config.app.autorun ? "AUTO" : "MANUAL"} mode).`
+    );
 
     this.scanner.start();
 
@@ -54,25 +57,31 @@ class Executor {
    */
   async runAutorunCycle() {
     let scanCount = 0;
-    
+
     while (this.isRunning && config.app.autorun) {
       scanCount++;
       const scanStartTime = new Date();
-      
-      logInfo(`🔄 Auto Scan #${scanCount} - Starting at ${scanStartTime.toLocaleTimeString()}`);
-      
+
+      logInfo(
+        `🔄 Auto Scan #${scanCount} - Starting at ${scanStartTime.toLocaleTimeString()}`
+      );
+
       // Clear previous projects and scan
       this.scanner.projects = [];
       this.scanner.performScan();
-      
+
       const projects = this.scanner.getProjects();
       const scanEndTime = new Date();
       const scanDuration = scanEndTime.getTime() - scanStartTime.getTime();
 
-      logInfo(`✅ Auto Scan #${scanCount} - Completed at ${scanEndTime.toLocaleTimeString()} (took ${scanDuration}ms)`);
-      
+      logInfo(
+        `✅ Auto Scan #${scanCount} - Completed at ${scanEndTime.toLocaleTimeString()} (took ${scanDuration}ms)`
+      );
+
       if (projects.length > 0) {
-        logInfo(`📊 Processing ${projects.length} project(s) found in scan #${scanCount}`);
+        logInfo(
+          `📊 Processing ${projects.length} project(s) found in scan #${scanCount}`
+        );
       } else {
         logInfo(`📭 No new projects found in scan #${scanCount}`);
       }
@@ -99,7 +108,7 @@ class Executor {
 
       // Step 1: Analyze the JSON file (validate and fix)
       this.analyzer.analyzeProject(project);
-      
+
       if (project.status === "analysis_failed") {
         logError(`Analysis failed for project: ${project.getFullName()}`);
         // Set up minimal analysis results for failed analysis
@@ -107,39 +116,49 @@ class Executor {
         this.results.saveProjectResults(project, project.getAnalysisResults());
         return;
       }
-      
+
       // Check for fatal errors after analysis
       if (project.status === "fatal_error") {
-        logError(`❌ Project has fatal errors and cannot be processed: ${project.getFullName()}`);
+        logError(
+          `❌ Project has fatal errors and cannot be processed: ${project.getFullName()}`
+        );
         return;
       }
 
       // Step 2: Execute rules
       const ruleResults = this.ruleEngine.executeRules(project);
-      
+
       // Step 3: Store analysis results in project
       project.setAnalysisResults(ruleResults);
-      
+
       // Step 4: Save results to file
       this.results.saveProjectResults(project, project.getAnalysisResults());
-      
+
       // Step 5: Log summary for monitoring
       this.logProjectSummary(project, ruleResults);
 
-      logInfo(`Project completed: ${project.getFullName()} - Status: ${project.analysisResults.summary.overallStatus}`);
+      logInfo(
+        `Project completed: ${project.getFullName()} - Status: ${
+          project.analysisResults.summary.overallStatus
+        }`
+      );
       project.status = "completed";
     } catch (err) {
       logError(`Project processing failed: ${err.message}`);
-      
+
       // Check if this is a critical error that should mark project as fatal
-      if (err.message.includes('JSON') || err.message.includes('parse') || err.message.includes('corrupt')) {
+      if (
+        err.message.includes("JSON") ||
+        err.message.includes("parse") ||
+        err.message.includes("corrupt")
+      ) {
         project.markAsFatalError(`Processing failed: ${err.message}`);
         project.status = "fatal_error";
         logError(`❌ Project marked as fatal error due to critical failure`);
       } else {
         // For other errors, mark as failed but still save results to avoid retrying
         project.status = "failed";
-        project.setAnalysisResults({}); // Empty results 
+        project.setAnalysisResults({}); // Empty results
         this.results.saveProjectResults(project, project.getAnalysisResults());
         logError(`❌ Project failed but result saved to prevent retry`);
       }
@@ -167,7 +186,7 @@ class Executor {
     try {
       this.scanner.scanProject(projectPath);
       const projects = this.scanner.getProjects();
-      
+
       // Process the most recently added project
       const latestProject = projects[projects.length - 1];
       if (latestProject && latestProject.status === "ready") {
@@ -189,29 +208,30 @@ class Executor {
    */
   async runManualMode() {
     try {
-      logInfo(`Starting manual mode (${config.app.testMode ? 'TEST' : 'PRODUCTION'})`);
-      
+      logInfo(
+        `Starting manual mode (${config.app.testMode ? "TEST" : "PRODUCTION"})`
+      );
+
       // Use the scanner's path resolution method
       await this.scanner.scanWithPathResolution();
-      
+
       const projects = this.scanner.getProjects();
-      
+
       if (projects.length === 0) {
         logWarn("No projects found to process.");
         return;
       }
 
       logInfo(`Found ${projects.length} project(s) to process in manual mode.`);
-      
+
       // Process all found projects
       for (const project of projects) {
         if (project.status === "ready") {
           await this.processProject(project);
         }
       }
-      
+
       logInfo("Manual mode processing completed.");
-      
     } catch (err) {
       logError(`Manual mode failed: ${err.message}`);
     }
@@ -225,19 +245,25 @@ class Executor {
   async waitWithCountdown(intervalMs, scanCount) {
     const totalSeconds = Math.floor(intervalMs / 1000);
     const nextScanTime = new Date(Date.now() + intervalMs);
-    
-    logInfo(`⏱️  Waiting ${totalSeconds} seconds until next scan (#${scanCount + 1}) at ${nextScanTime.toLocaleTimeString()}`);
-    
+
+    logInfo(
+      `⏱️  Waiting ${totalSeconds} seconds until next scan (#${
+        scanCount + 1
+      }) at ${nextScanTime.toLocaleTimeString()}`
+    );
+
     // Show countdown every 10 seconds for intervals >= 30 seconds
     if (totalSeconds >= 30) {
       for (let remaining = totalSeconds; remaining > 0; remaining -= 10) {
         if (remaining <= totalSeconds && remaining > 10) {
-          logInfo(`⏳ ${remaining} seconds remaining until scan #${scanCount + 1}...`);
+          logInfo(
+            `⏳ ${remaining} seconds remaining until scan #${scanCount + 1}...`
+          );
         }
-        
+
         const waitTime = Math.min(10000, remaining * 1000);
-        await new Promise(resolve => setTimeout(resolve, waitTime));
-        
+        await new Promise((resolve) => setTimeout(resolve, waitTime));
+
         // Check if we should stop
         if (!this.isRunning || !config.app.autorun) {
           return;
@@ -245,9 +271,9 @@ class Executor {
       }
     } else {
       // For shorter intervals, just wait without countdown
-      await new Promise(resolve => setTimeout(resolve, intervalMs));
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
     }
-    
+
     if (this.isRunning && config.app.autorun) {
       logInfo(`🎯 Starting scan #${scanCount + 1} now...`);
     }
@@ -260,15 +286,25 @@ class Executor {
    */
   logProjectSummary(project, ruleResults) {
     const { summary } = ruleResults;
-    const status = summary?.overallStatus?.toUpperCase() || 'UNKNOWN';
-    
+    const status = summary?.overallStatus?.toUpperCase() || "UNKNOWN";
+
     logInfo(`\n📋 Analysis Summary for ${project.getFullName()}`);
     logInfo(`  Overall Status: ${status}`);
-    
+
     if (summary) {
-      logInfo(`  Rules: ${summary.rulesPassed || 0} passed, ${summary.rulesFailed || 0} failed, ${(summary.rulesRun || 0) - (summary.rulesPassed || 0) - (summary.rulesFailed || 0)} not applicable`);
-      logInfo(`  Project Stats: ${project.compoundJobs.size} NC files, ${project.tools.size} tools`);
-      
+      logInfo(
+        `  Rules: ${summary.rulesPassed || 0} passed, ${
+          summary.rulesFailed || 0
+        } failed, ${
+          (summary.rulesRun || 0) -
+          (summary.rulesPassed || 0) -
+          (summary.rulesFailed || 0)
+        } not applicable`
+      );
+      logInfo(
+        `  Project Stats: ${project.compoundJobs.size} NC files, ${project.tools.size} tools`
+      );
+
       // Show failed rules for immediate attention
       if (summary.rulesFailed > 0) {
         logInfo(`  ❌ Failed Rules: Check result file for details`);
