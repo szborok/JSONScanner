@@ -16,7 +16,7 @@ class Executor {
     this.scanner = new Scanner();
     this.analyzer = new Analyzer();
     this.ruleEngine = new RuleEngine();
-    this.results = new Results(dataManager);
+    this.results = new Results(dataManager, this.scanner.tempManager);
     this.dataManager = dataManager;
     this.isRunning = false;
     this.manualQueue = [];
@@ -80,7 +80,9 @@ class Executor {
 
       // Log temp session info
       const tempInfo = this.scanner.getTempSessionInfo();
-      logInfo(`📁 Temp session: ${tempInfo.sessionId} (${tempInfo.trackedFiles} files tracked)`);
+      logInfo(
+        `📁 Temp session: ${tempInfo.sessionId} (${tempInfo.trackedFiles} files tracked)`
+      );
 
       if (projects.length > 0) {
         logInfo(
@@ -230,7 +232,9 @@ class Executor {
 
       // Log temp session info
       const tempInfo = this.scanner.getTempSessionInfo();
-      logInfo(`📁 Temp session: ${tempInfo.sessionId} (${tempInfo.trackedFiles} files tracked)`);
+      logInfo(
+        `📁 Temp session: ${tempInfo.sessionId} (${tempInfo.trackedFiles} files tracked)`
+      );
 
       // Process all projects
       for (const project of projects) {
@@ -323,11 +327,12 @@ class Executor {
 
   /**
    * Stop after current work is done.
+   * @param {boolean} preserveResults - Whether to preserve result files
    */
-  stop() {
+  stop(preserveResults = false) {
     logWarn("Executor stop requested.");
     this.isRunning = false;
-    this.scanner.stop();
+    this.scanner.stop(preserveResults);
   }
 }
 

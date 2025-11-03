@@ -9,12 +9,13 @@ const path = require("path");
 const { logInfo, logError } = require("../utils/Logger");
 
 class Results {
-  constructor(dataManager = null) {
+  constructor(dataManager = null, tempManager = null) {
     this.dataManager = dataManager;
+    this.tempManager = tempManager;
   }
 
   /**
-   * Saves project analysis results to storage (database + optional file).
+   * Saves project analysis results to storage (database + temp file).
    * @param {Project} project - The project instance
    * @param {Object} analysisResults - Analysis results from project.getAnalysisResults()
    * @returns {string|null} - Storage ID or file path, null if failed
@@ -22,17 +23,20 @@ class Results {
   async saveProjectResults(project, analysisResults) {
     try {
       // Save to modern storage (DataManager)
+      let storageId = null;
       if (this.dataManager) {
-        const storageId = await this.dataManager.saveScanResult(
+        storageId = await this.dataManager.saveScanResult(
           project,
           analysisResults
         );
         await this.dataManager.saveProject(project);
-        return storageId;
+        logInfo(`📊 Results saved to database: ${storageId}`);
       }
 
-      // Fallback: save to traditional file
-      return this.saveTraditionalFile(project, analysisResults);
+      // ALWAYS save to temp folder (not original location)
+      const tempFilePath = this.saveTempFile(project, analysisResults);
+
+      return storageId || tempFilePath;
     } catch (error) {
       logError(`Error saving results for ${project.getFullName()}:`, error);
       return null;
@@ -40,43 +44,53 @@ class Results {
   }
 
   /**
-   * Traditional file-based saving (backward compatibility)
+   * Saves results to temp folder (read-only approach)
    */
-  saveTraditionalFile(project, analysisResults) {
+  saveTempFile(project, analysisResults) {
     try {
-      const resultPath = project.getResultFilePath();
+      if (!this.tempManager) {
+        logError("No temp manager available for saving results");
+        return null;
+      }
 
-      if (!resultPath) {
+      // Generate result filename based on project
+      const originalResultPath = project.getResultFilePath();
+      if (!originalResultPath) {
         logError(
           `Cannot generate result file path for project: ${project.getFullName()}`
         );
         return null;
       }
 
-      // Ensure directory exists
-      const dir = path.dirname(resultPath);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
+      // Create result file in organized temp folder
+      const resultFileName = path.basename(originalResultPath);
 
-      // Write clean, structured results to file
-      fs.writeFileSync(
-        resultPath,
+      // Use TempFileManager's organized save method
+      const tempResultPath = this.tempManager.saveToTemp(
+        resultFileName,
         JSON.stringify(analysisResults, null, 2),
-        "utf8"
+        "result"
       );
 
-      logInfo(`✅ Result file saved: ${path.basename(resultPath)}`);
+      logInfo(`✅ Result file saved to organized temp: ${resultFileName}`);
 
-      return resultPath;
+      return tempResultPath;
     } catch (err) {
       logError(
-        `❌ Failed to save result file for ${project.getFullName()}: ${
+        `❌ Failed to save temp result file for ${project.getFullName()}: ${
           err.message
         }`
       );
       return null;
     }
+  }
+
+  /**
+   * Traditional file-based saving (DEPRECATED - now redirects to temp)
+   */
+  saveTraditionalFile(project, analysisResults) {
+    logInfo("⚠️ Traditional file saving redirected to temp folder for safety");
+    return this.saveTempFile(project, analysisResults);
   }
 
   /**

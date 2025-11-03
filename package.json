@@ -1,7 +1,7 @@
 {
   "name": "jsonscanner",
-  "version": "1.0.0",
-  "description": "CNC JSONScanner with dual storage support",
+  "version": "2.0.0",
+  "description": "CNC JSONScanner with organized temp structure for BRK CNC Management Dashboard",
   "main": "main.js",
   "dependencies": {
     "chalk": "^4.1.2",
@@ -13,6 +13,19 @@
     "manual": "node main.js --manual",
     "cleanup": "node main.js --cleanup",
     "test-readonly": "node main.js --test-readonly",
-    "demo-readonly": "node demo-readonly.js"
-  }
+    "demo-readonly": "node demo-readonly.js",
+    "demo-temp-only": "node demo-temp-only.js",
+    "list-results": "node main.js --list-results",
+    "export-results": "node main.js --export-results"
+  },
+  "keywords": [
+    "cnc",
+    "manufacturing",
+    "quality-control",
+    "temp-structure",
+    "cross-platform",
+    "brk-dashboard"
+  ],
+  "author": "BRK CNC Management Dashboard",
+  "license": "MIT"
 }
