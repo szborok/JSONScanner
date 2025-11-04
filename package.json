@@ -9,6 +9,8 @@
   },
   "scripts": {
     "start": "node main.js",
+    "dev:scanner": "node main.js --auto",
+    "start:scanner": "node main.js --auto",
     "auto": "node main.js --auto",
     "manual": "node main.js --manual",
     "cleanup": "node main.js --cleanup",
