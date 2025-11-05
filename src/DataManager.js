@@ -6,7 +6,7 @@
 
 const StorageAdapter = require("../utils/StorageAdapter");
 const config = require("../config");
-const { logInfo, logError } = require("../utils/Logger");
+const { logInfo, logError, logWarn } = require("../utils/Logger");
 const fs = require("fs");
 const path = require("path");
 
@@ -80,9 +80,17 @@ class DataManager {
         `💾 Scan result saved: ${project.getFullName()} (${this.storage.getStorageType()})`
       );
 
-      // Also save to traditional file if using local storage
-      if (this.storage.getStorageType() === "local") {
-        await this.saveTraditionalResultFile(project, analysisResults);
+      // Also save to traditional file if using local storage (skip in test mode)
+      if (this.storage.getStorageType() === "local" && !config.app.testMode) {
+        try {
+          await this.saveTraditionalResultFile(project, analysisResults);
+        } catch (traditionalError) {
+          // Log but don't throw - traditional file save is optional
+          logWarn(
+            `Traditional file save failed for ${project.getFullName()} (this is normal in test mode):`,
+            traditionalError.message
+          );
+        }
       }
 
       return result.insertedId;

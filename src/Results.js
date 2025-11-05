@@ -7,6 +7,7 @@
 const fs = require("fs");
 const path = require("path");
 const { logInfo, logError } = require("../utils/Logger");
+const config = require("../config");
 
 class Results {
   constructor(dataManager = null, tempManager = null) {
@@ -22,15 +23,17 @@ class Results {
    */
   async saveProjectResults(project, analysisResults) {
     try {
-      // Save to modern storage (DataManager)
+      // Save to modern storage (DataManager) - skip in test mode to avoid errors
       let storageId = null;
-      if (this.dataManager) {
+      if (this.dataManager && !config.app.testMode) {
         storageId = await this.dataManager.saveScanResult(
           project,
           analysisResults
         );
         await this.dataManager.saveProject(project);
         logInfo(`📊 Results saved to database: ${storageId}`);
+      } else if (config.app.testMode) {
+        logInfo(`📊 Database save skipped in test mode`);
       }
 
       // ALWAYS save to temp folder (not original location)

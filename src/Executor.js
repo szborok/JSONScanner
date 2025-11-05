@@ -141,7 +141,7 @@ class Executor {
       this.results.saveProjectResults(project, project.getAnalysisResults());
 
       // Step 5: Log summary for monitoring
-      this.logProjectSummary(project, ruleResults);
+      this.logProjectSummary(project, project.getAnalysisResults());
 
       logInfo(
         `Project completed: ${project.getFullName()} - Status: ${

@@ -14,6 +14,10 @@ const config = {
     scanIntervalMs: 60000, // How often the autorun scanner checks for new JSONs (60 seconds)
     logLevel: "info", // can be: 'debug', 'info', 'warn', 'error'
     enableDetailedLogging: true,
+    enableProgressReporting: true, // Show progress during bulk file operations
+    progressReportInterval: 10, // Report progress every N files during bulk operations
+    operationTimeoutWarning: 5000, // Warn if single operation takes longer than 5 seconds
+    usePersistentTempFolder: true, // Use persistent temp folder with original structure
     forceReprocess: false, // true = reprocess even if result file exists, false = skip processed files
   },
 
@@ -89,22 +93,36 @@ const config = {
     test: {
       testDataPathAuto: path.join(
         __dirname,
+        "data",
         "test_data",
         "testPathHumming_auto"
       ),
       testDataPathManual: path.join(
         __dirname,
+        "data",
         "test_data",
         "testPathOne_manual"
       ),
     },
     // Production mode paths (for live operation)
     production: {
-      productionDataPath: path.join(__dirname, "test_data", "production"), // Will be created if doesn't exist
+      productionDataPath: path.join(
+        __dirname,
+        "data",
+        "test_data",
+        "production"
+      ), // Will be created if doesn't exist
       manualPath: null, // Will be provided by user in manual mode
     },
     // General paths
-    dataRoot: path.join(__dirname, "test_data"),
+    dataRoot: path.join(__dirname, "data", "test_data"),
+  },
+
+  // File filtering for temp operations
+  tempFiles: {
+    essentialExtensions: [".json", ".h", ".tls"], // Only copy these file types
+    skipExtensions: [".gif", ".png", ".jpg", ".html", ".stl", ".vcproject"], // Skip these file types
+    sessionTrackingExtension: ".session", // Extension for session tracking files
   },
 
   // File naming

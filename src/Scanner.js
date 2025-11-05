@@ -12,16 +12,24 @@ const { logInfo, logWarn, logError } = require("../utils/Logger");
 const { getDirectories } = require("../utils/FileUtils");
 const Project = require("./Project");
 const TempFileManager = require("../utils/TempFileManager");
+const PersistentTempManager = require("../utils/PersistentTempManager");
 
 class Scanner {
   constructor() {
     this.projects = [];
     this.running = false;
-    this.tempManager = new TempFileManager("JSONScanner"); // Pass app name
-    this.scannedPaths = new Set(); // Track what we've scanned
 
-    // Cleanup old temp sessions on startup
-    TempFileManager.cleanupOldSessions("JSONScanner");
+    // Choose temp manager based on configuration
+    if (config.app.usePersistentTempFolder) {
+      this.tempManager = new PersistentTempManager("JSONScanner");
+      logInfo("Using persistent temp folder with original structure");
+    } else {
+      this.tempManager = new TempFileManager("JSONScanner");
+      // Cleanup old temp sessions on startup
+      TempFileManager.cleanupOldSessions("JSONScanner");
+    }
+
+    this.scannedPaths = new Set(); // Track what we've scanned
   }
 
   /**
@@ -375,22 +383,38 @@ class Scanner {
             );
             if (fileInfo) {
               try {
-                // Create temp copy of the JSON file
-                const tempPath = await this.tempManager.copyToTemp(fullPath);
-                fileInfo.tempPath = tempPath;
-
-                // Also copy the entire project directory if it contains NC files
-                const projectDir = this.getProjectPathFromJsonFile(fileInfo);
-                if (projectDir && projectDir !== path.dirname(fullPath)) {
-                  const tempProjectDir = await this.tempManager.copyToTemp(
-                    projectDir
+                if (config.app.usePersistentTempFolder) {
+                  // Use new persistent approach - copy only essential files with structure
+                  const copyResult = await this.tempManager.copyJsonProject(
+                    fullPath,
+                    rootPath
                   );
-                  fileInfo.tempProjectDir = tempProjectDir;
+                  fileInfo.tempPath = copyResult.jsonFile;
+                  fileInfo.tempProjectDir = path.dirname(copyResult.jsonFile);
+                  fileInfo.sessionFile = copyResult.sessionFile;
+                  fileInfo.ncFiles = copyResult.ncFiles;
+                  fileInfo.isChanged = copyResult.isChanged;
+                  fileInfo.sessionId = copyResult.sessionId;
+                } else {
+                  // Legacy approach - copy JSON file and entire project directory
+                  const tempPath = await this.tempManager.copyToTemp(fullPath);
+                  fileInfo.tempPath = tempPath;
+
+                  // Also copy the entire project directory if it contains NC files
+                  const projectDir = this.getProjectPathFromJsonFile(fileInfo);
+                  if (projectDir && projectDir !== path.dirname(fullPath)) {
+                    const tempProjectDir = await this.tempManager.copyToTemp(
+                      projectDir
+                    );
+                    fileInfo.tempProjectDir = tempProjectDir;
+                  }
                 }
 
                 jsonFiles.push(fileInfo);
                 logInfo(
-                  `📄 Copied to temp: ${item.name} → ${path.basename(tempPath)}`
+                  `📄 Copied to temp: ${item.name} → ${path.basename(
+                    fileInfo.tempPath
+                  )}`
                 );
               } catch (err) {
                 logError(`Failed to copy ${fullPath} to temp: ${err.message}`);

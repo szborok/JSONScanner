@@ -17,19 +17,19 @@ class Project {
     this.position = null; // e.g., "A", "B" - extracted from JSON file name
     this.machine = null; // e.g., "DMU 100P duoblock Minus"
     this.operator = null; // e.g., "aszilagyi"
-    
+
     // File paths and structure
     this.jsonFilePath = null; // Path to the target JSON file
     this.machineFolder = null; // Path to machine subfolder
     this.hypermillFilePath = null; // HyperMILL CAD file reference
-    
+
     // NC files and jobs data structure
     // Each NC file is identified by programName (e.g., "W5270NS01003A1.h")
     // NC files contain multiple jobs (operations) that should use the same tool
     this.compoundJobs = new Map(); // Map<programName, CompoundJob> - NC files
     this.tools = new Map(); // Map<toolName, ToolInfo> - Tools used across all NC files
     this.totalOperationTime = 0; // Total time for all operations in this project
-    
+
     // Analysis results (stored before writing to file)
     this.analysisResults = {
       rules: new Map(), // Map<ruleName, RuleResult> - Individual rule results
@@ -38,12 +38,12 @@ class Project {
         rulesRun: 0,
         rulesPassed: 0,
         rulesFailed: 0,
-        totalViolations: 0
+        totalViolations: 0,
       },
       processedAt: null,
-      status: 'pending' // pending, completed, error
+      status: "pending", // pending, completed, error
     };
-    
+
     // Project status
     this.status = "initialized"; // initialized, ready, analyzing, completed, error
     this.isValid = false;
@@ -58,44 +58,54 @@ class Project {
     try {
       // Extract project base name (e.g., "W5270NS01003" from full path)
       const projectBaseName = this.name;
-      
+
       const subdirs = fs.readdirSync(this.projectPath, { withFileTypes: true });
-      
+
       for (const dir of subdirs) {
         if (dir.isDirectory()) {
           // Look for position-specific subdirectories (e.g., W5270NS01003A, W5270NS01003B)
-          const positionMatch = dir.name.match(new RegExp(`^(${projectBaseName}([A-Z]))$`));
-          
+          const positionMatch = dir.name.match(
+            new RegExp(`^(${projectBaseName}([A-Z]))$`)
+          );
+
           if (positionMatch) {
             const positionName = positionMatch[1]; // W5270NS01003A
             this.position = positionMatch[2]; // A
-            
+
             const positionFolder = path.join(this.projectPath, dir.name);
-            const targetJsonPath = this.findTargetJsonFile(positionFolder, positionName);
-            
+            const targetJsonPath = this.findTargetJsonFile(
+              positionFolder,
+              positionName
+            );
+
             if (targetJsonPath) {
               this.jsonFilePath = targetJsonPath;
               this.machineFolder = path.dirname(targetJsonPath);
-              
+
               // Load and parse JSON data
               const loaded = this.loadJsonData();
               if (loaded) {
                 this.isValid = true;
                 this.status = "ready";
-                logInfo(`Initialized project "${this.getFullName()}" - ${this.getTotalJobCount()} operations, ${this.compoundJobs.size} NC files`);
+                logInfo(
+                  `Initialized project "${this.getFullName()}" - ${this.getTotalJobCount()} operations, ${
+                    this.compoundJobs.size
+                  } NC files`
+                );
                 return true;
               }
             }
           }
         }
       }
-      
+
       this.status = "no_targets";
       if (operatorFilter) {
-        logInfo(`No valid files found for operator "${operatorFilter}" in project "${this.name}"`);
+        logInfo(
+          `No valid files found for operator "${operatorFilter}" in project "${this.name}"`
+        );
       }
       return false;
-      
     } catch (err) {
       // Most initialization errors are probably fatal (missing files, corrupt structure, etc.)
       this.markAsFatalError(`Initialization failed: ${err.message}`);
@@ -114,20 +124,28 @@ class Project {
   findTargetJsonFile(positionFolder, expectedName) {
     try {
       // Look in machine subfolders for the target JSON file
-      const machineDirs = fs.readdirSync(positionFolder, { withFileTypes: true });
-      
+      const machineDirs = fs.readdirSync(positionFolder, {
+        withFileTypes: true,
+      });
+
       for (const machineDir of machineDirs) {
         if (machineDir.isDirectory()) {
           const machineFolder = path.join(positionFolder, machineDir.name);
-          const targetJsonPath = path.join(machineFolder, `${expectedName}.json`);
-          
+          const targetJsonPath = path.join(
+            machineFolder,
+            `${expectedName}.json`
+          );
+
           // Check if target JSON file exists
           if (fs.existsSync(targetJsonPath)) {
             // Skip if it's a generated file
-            if (targetJsonPath.includes('BRK_fixed') || targetJsonPath.includes('BRK_result')) {
+            if (
+              targetJsonPath.includes("BRK_fixed") ||
+              targetJsonPath.includes("BRK_result")
+            ) {
               continue;
             }
-            
+
             // No operator filter needed, return the file
             logInfo(`Found target JSON: ${path.basename(targetJsonPath)}`);
             return targetJsonPath;
@@ -135,9 +153,11 @@ class Project {
         }
       }
     } catch (err) {
-      logError(`Error scanning position folder ${positionFolder}: ${err.message}`);
+      logError(
+        `Error scanning position folder ${positionFolder}: ${err.message}`
+      );
     }
-    
+
     return null;
   }
 
@@ -148,12 +168,12 @@ class Project {
    */
   static sanitizeJsonContent(jsonString) {
     // Fix unquoted NaN values which are invalid JSON
-    let sanitized = jsonString.replace(/:\s*NaN\s*,/g, ': null,');
-    sanitized = sanitized.replace(/:\s*NaN\s*}/g, ': null}');
-    
+    let sanitized = jsonString.replace(/:\s*NaN\s*,/g, ": null,");
+    sanitized = sanitized.replace(/:\s*NaN\s*}/g, ": null}");
+
     // Fix any other common malformed JSON patterns if needed
     // Add more patterns here as they are discovered
-    
+
     return sanitized;
   }
 
@@ -163,45 +183,52 @@ class Project {
    */
   loadJsonData() {
     try {
-      const rawJsonContent = fs.readFileSync(this.jsonFilePath, 'utf8');
+      const rawJsonContent = fs.readFileSync(this.jsonFilePath, "utf8");
       const sanitizedJsonContent = Project.sanitizeJsonContent(rawJsonContent);
       const jsonContent = JSON.parse(sanitizedJsonContent);
-      
+
       // Extract project metadata
       this.operator = jsonContent.operator || null;
       this.machine = jsonContent.machine || null;
       this.hypermillFilePath = jsonContent.cadPart || null;
-      
+
       // Process operations into compound jobs
       if (jsonContent.operations && Array.isArray(jsonContent.operations)) {
         this.processOperations(jsonContent.operations);
       }
-      
-      logInfo(`Loaded JSON data: ${this.getTotalJobCount()} operations across ${this.compoundJobs.size} NC files`);
+
+      logInfo(
+        `Loaded JSON data: ${this.getTotalJobCount()} operations across ${
+          this.compoundJobs.size
+        } NC files`
+      );
       return true;
-      
     } catch (err) {
-      logError(`Failed to load JSON data from ${this.jsonFilePath}: ${err.message}`);
-      
+      logError(
+        `Failed to load JSON data from ${this.jsonFilePath}: ${err.message}`
+      );
+
       // Most JSON loading errors are probably fatal
       if (err instanceof SyntaxError) {
         // JSON parsing failed even after sanitization - definitely fatal
         this.markAsFatalError(`JSON parsing failed: ${err.message}`);
         this.status = "fatal_error";
-      } else if (err.code === 'ENOENT') {
+      } else if (err.code === "ENOENT") {
         // File not found - fatal
         this.markAsFatalError(`JSON file not found: ${err.message}`);
         this.status = "fatal_error";
-      } else if (err.code === 'EACCES') {
+      } else if (err.code === "EACCES") {
         // Permission denied - fatal
-        this.markAsFatalError(`Permission denied accessing JSON file: ${err.message}`);
+        this.markAsFatalError(
+          `Permission denied accessing JSON file: ${err.message}`
+        );
         this.status = "fatal_error";
       } else {
         // Other errors - also treat as fatal for now
         this.markAsFatalError(`JSON loading failed: ${err.message}`);
         this.status = "fatal_error";
       }
-      
+
       return false;
     }
   }
@@ -212,28 +239,33 @@ class Project {
    */
   processOperations(operations) {
     this.totalOperationTime = 0;
-    
+
     operations.forEach((operation, index) => {
       const programName = operation.programName;
       const toolName = operation.toolName;
       const operationTime = operation.operationTime || 0;
-      
+
       this.totalOperationTime += operationTime;
-      
+
       // Create or update compound job
       if (!this.compoundJobs.has(programName)) {
         this.compoundJobs.set(programName, new CompoundJob(programName));
       }
       const compoundJob = this.compoundJobs.get(programName);
       compoundJob.addJob(operation);
-      
+
       // Create or update tool info
       if (toolName && !this.tools.has(toolName)) {
         this.tools.set(toolName, new ToolInfo(toolName, operation.toolDetails));
       }
       const toolInfo = this.tools.get(toolName);
       if (toolInfo) {
-        toolInfo.addUsage(programName, operationTime, operation.maxSpeed, operation.maxFeed);
+        toolInfo.addUsage(
+          programName,
+          operationTime,
+          operation.maxSpeed,
+          operation.maxFeed
+        );
       }
     });
   }
@@ -260,11 +292,11 @@ class Project {
     if (!resultPath || !fs.existsSync(resultPath)) {
       return false;
     }
-    
+
     try {
       const jsonStats = fs.statSync(this.jsonFilePath);
       const resultStats = fs.statSync(resultPath);
-      
+
       // Check if result file is newer than JSON file
       return resultStats.mtime >= jsonStats.mtime;
     } catch (err) {
@@ -293,16 +325,20 @@ class Project {
       project: this.getFullName(),
       jsonFile: this.jsonFilePath,
       error: errorMessage,
-      markedBy: 'JSON Scanner v1.0'
+      markedBy: "JSON Scanner v1.0",
     };
-    
+
     try {
       const dir = path.dirname(errorMarkerPath);
       if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
       }
-      
-      fs.writeFileSync(errorMarkerPath, JSON.stringify(errorInfo, null, 2), 'utf8');
+
+      fs.writeFileSync(
+        errorMarkerPath,
+        JSON.stringify(errorInfo, null, 2),
+        "utf8"
+      );
       logError(`❌ Project marked as fatal error: ${this.getFullName()}`);
       logError(`❌ Error marker created: ${path.basename(errorMarkerPath)}`);
     } catch (err) {
@@ -365,41 +401,43 @@ class Project {
    */
   setAnalysisResults(ruleResults, customRuleConfig = null) {
     this.analysisResults.processedAt = new Date().toISOString();
-    this.analysisResults.status = 'completed';
-    
+    this.analysisResults.status = "completed";
+
     // Use custom config or default centralized config
     const ruleConfig = customRuleConfig || config.rules;
-    
+
     // Process each rule result
     Object.entries(ruleResults).forEach(([ruleName, result]) => {
       const ruleConfigItem = ruleConfig[ruleName] || {};
-      
+
       const ruleResult = {
         name: ruleName,
         shouldRun: this.shouldRunRule(ruleName, ruleConfigItem),
         run: result !== undefined && result !== null,
         passed: false,
-        failureType: ruleConfigItem.failureType || 'unknown', // 'job', 'ncfile', 'project'
+        failureType: ruleConfigItem.failureType || "unknown", // 'job', 'ncfile', 'project'
         failures: [],
         violationCount: 0,
-        description: ruleConfigItem.description || ruleName
+        description: ruleConfigItem.description || ruleName,
       };
 
       if (ruleResult.run && ruleResult.shouldRun) {
         if (Array.isArray(result)) {
           // Standard array result (list of failed items)
           ruleResult.passed = result.length === 0;
-          ruleResult.failures = result.map(item => ({
+          ruleResult.failures = result.map((item) => ({
             item: item,
             type: ruleResult.failureType,
-            details: this.getFailureDetails(ruleName, item)
+            details: this.getFailureDetails(ruleName, item),
           }));
           ruleResult.violationCount = result.length;
-        } else if (typeof result === 'object' && result.passed !== undefined) {
+        } else if (typeof result === "object" && result.passed !== undefined) {
           // Enhanced result object with more details
           ruleResult.passed = result.passed;
           ruleResult.failures = result.failures || [];
-          ruleResult.violationCount = result.failures ? result.failures.length : 0;
+          ruleResult.violationCount = result.failures
+            ? result.failures.length
+            : 0;
         } else {
           // Simple boolean or other result
           ruleResult.passed = !!result;
@@ -424,11 +462,13 @@ class Project {
    */
   shouldRunRule(ruleName, ruleConfig) {
     // If rule has custom logic function, use it
-    if (ruleConfig.logic && typeof ruleConfig.logic === 'function') {
+    if (ruleConfig.logic && typeof ruleConfig.logic === "function") {
       try {
         return ruleConfig.logic(this);
       } catch (error) {
-        logError(`Error evaluating rule logic for ${ruleName}: ${error.message}`);
+        logError(
+          `Error evaluating rule logic for ${ruleName}: ${error.message}`
+        );
         return false; // Default to not running if logic fails
       }
     }
@@ -459,16 +499,20 @@ class Project {
    */
   hasOperationType(operationType) {
     const searchType = operationType.toLowerCase();
-    
+
     for (const [programName, compoundJob] of this.compoundJobs) {
       for (const operation of compoundJob.operations) {
-        const opType = (operation.operationType || operation.operation || '').toLowerCase();
-        
+        const opType = (
+          operation.operationType ||
+          operation.operation ||
+          ""
+        ).toLowerCase();
+
         // For exact matches (like specific openMIND operations)
         if (opType === searchType) {
           return true;
         }
-        
+
         // For partial matches (like 'contour' matching various contour types)
         if (opType.includes(searchType)) {
           return true;
@@ -487,24 +531,24 @@ class Project {
   getFailureDetails(ruleName, failedItem) {
     const details = {
       item: failedItem,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
 
     // Add context based on rule type and failed item
     if (this.compoundJobs.has(failedItem)) {
       // Failed item is an NC file
       const ncFile = this.compoundJobs.get(failedItem);
-      details.type = 'ncfile';
+      details.type = "ncfile";
       details.jobCount = ncFile.jobs.length;
       details.totalTime = ncFile.totalTime;
       details.toolName = ncFile.toolName;
       details.hasMultipleTools = ncFile.hasMultipleTools;
     } else {
       // Failed item might be a job number or other identifier
-      details.type = 'job';
+      details.type = "job";
       // Try to find which NC file contains this job
       for (const [programName, ncFile] of this.compoundJobs) {
-        const job = ncFile.jobs.find(j => j.number == failedItem);
+        const job = ncFile.jobs.find((j) => j.number == failedItem);
         if (job) {
           details.programName = programName;
           details.jobDescription = job.description;
@@ -525,7 +569,8 @@ class Project {
     let anyRuleRan = false;
     let allPassed = true;
 
-    this.analysisResults.rules.forEach((ruleResult) => {
+    // Iterate through the Map of rules
+    this.analysisResults.rules.forEach((ruleResult, ruleName) => {
       if (ruleResult.shouldRun && ruleResult.run) {
         anyRuleRan = true;
         if (!ruleResult.passed) {
@@ -537,15 +582,22 @@ class Project {
     // Simple overall status
     let overallStatus;
     if (!anyRuleRan) {
-      overallStatus = 'no_rules_run';
+      overallStatus = "no_rules_run";
     } else if (allPassed) {
-      overallStatus = 'passed';
+      overallStatus = "passed";
     } else {
-      overallStatus = 'failed';
+      overallStatus = "failed";
     }
 
     this.analysisResults.summary = {
-      overallStatus: overallStatus
+      overallStatus: overallStatus,
+      rulesRun: this.analysisResults.rules.size,
+      rulesPassed: Array.from(this.analysisResults.rules.values()).filter(
+        (r) => r.run && r.passed
+      ).length,
+      rulesFailed: Array.from(this.analysisResults.rules.values()).filter(
+        (r) => r.run && !r.passed
+      ).length,
     };
   }
 
@@ -566,7 +618,7 @@ class Project {
       // compoundJobs: this.getCompoundJobsSummary(),
       // tools: this.getToolsSummary(),
       processedAt: this.analysisResults.processedAt,
-      status: this.analysisResults.status
+      status: this.analysisResults.status,
     };
   }
 
@@ -576,7 +628,7 @@ class Project {
    */
   getRulesForDisplay() {
     const rulesArray = [];
-    
+
     this.analysisResults.rules.forEach((ruleResult, ruleName) => {
       rulesArray.push({
         name: ruleResult.name,
@@ -587,7 +639,7 @@ class Project {
         failureType: ruleResult.failureType,
         violationCount: ruleResult.violationCount,
         failures: ruleResult.failures,
-        status: this.getRuleStatus(ruleResult)
+        status: this.getRuleStatus(ruleResult),
       });
     });
 
@@ -600,11 +652,11 @@ class Project {
    * @returns {string} - Status string
    */
   getRuleStatus(ruleResult) {
-    if (!ruleResult.shouldRun) return 'not_applicable';
-    if (!ruleResult.run) return 'not_run';
-    if (ruleResult.passed === null) return 'not_applicable';
-    if (ruleResult.passed) return 'passed';
-    return 'failed';
+    if (!ruleResult.shouldRun) return "not_applicable";
+    if (!ruleResult.run) return "not_run";
+    if (ruleResult.passed === null) return "not_applicable";
+    if (ruleResult.passed) return "passed";
+    return "failed";
   }
 
   /**
@@ -614,42 +666,42 @@ class Project {
    */
   getDefaultRuleConfig() {
     return {
-      'gundrill60MinLimit': {
-        description: 'Gundrill tools should not exceed 60 minutes per NC file',
-        failureType: 'ncfile',
+      gundrill60MinLimit: {
+        description: "Gundrill tools should not exceed 60 minutes per NC file",
+        failureType: "ncfile",
         // Custom logic: only run if project uses gundrill tools
-        logic: (project) => project.hasToolCategory('gundrill')
+        logic: (project) => project.hasToolCategory("gundrill"),
       },
-      'singleToolInNC': {
-        description: 'Each NC file should use only one tool',
-        failureType: 'ncfile',
+      singleToolInNC: {
+        description: "Each NC file should use only one tool",
+        failureType: "ncfile",
         // Always run
-        logic: (project) => true
+        logic: (project) => true,
       },
-      'M110Check': {
-        description: 'M110 command required for helical drilling operations',
-        failureType: 'ncfile',
+      M110Check: {
+        description: "M110 command required for helical drilling operations",
+        failureType: "ncfile",
         // Only run for machines that support M110
-        logic: (project) => project.machine && project.machine.includes('DMU')
+        logic: (project) => project.machine && project.machine.includes("DMU"),
       },
-      'timeLimitsCheck': {
-        description: 'Operation time limits validation',
-        failureType: 'job',
+      timeLimitsCheck: {
+        description: "Operation time limits validation",
+        failureType: "job",
         // Always run
-        logic: (project) => true
+        logic: (project) => true,
       },
-      'toolReconditionCheck': {
-        description: 'Tool reconditioning schedule validation',
-        failureType: 'tool',
+      toolReconditionCheck: {
+        description: "Tool reconditioning schedule validation",
+        failureType: "tool",
         // Don't run for admin users
-        logic: (project) => project.operator !== 'admin'
+        logic: (project) => project.operator !== "admin",
       },
-      'autoCorrection': {
-        description: 'Automatic correction of common issues',
-        failureType: 'project',
+      autoCorrection: {
+        description: "Automatic correction of common issues",
+        failureType: "project",
         // Only run if operator has permission
-        logic: (project) => project.operator && project.operator !== 'readonly'
-      }
+        logic: (project) => project.operator && project.operator !== "readonly",
+      },
     };
   }
 
@@ -664,7 +716,7 @@ class Project {
         jobCount: compoundJob.jobs.length,
         totalTime: compoundJob.totalTime,
         toolName: compoundJob.toolName,
-        hasIssues: compoundJob.hasIssues
+        hasIssues: compoundJob.hasIssues,
       });
     });
     return summary;
@@ -682,7 +734,7 @@ class Project {
         totalTime: toolInfo.totalUsageTime,
         programCount: toolInfo.usagePrograms.size,
         diameter: toolInfo.diameter,
-        totalLength: toolInfo.totalLength
+        totalLength: toolInfo.totalLength,
       });
     });
     return summary;
@@ -723,7 +775,7 @@ class Project {
       totalTime: this.totalOperationTime,
       status: this.status,
       isValid: this.isValid,
-      analysisStatus: this.analysisResults.summary.overallStatus
+      analysisStatus: this.analysisResults.summary.overallStatus,
     };
   }
 
@@ -776,7 +828,7 @@ class CompoundJob {
       toolName: operation.toolName, // What tool this job uses
       maxSpeed: operation.maxSpeed,
       maxFeed: operation.maxFeed,
-      operationArea: operation.operationArea
+      operationArea: operation.operationArea,
     };
 
     this.jobs.push(job);
@@ -785,12 +837,12 @@ class CompoundJob {
     // Track tool usage and detect violations
     if (job.toolName) {
       this.toolList.add(job.toolName);
-      
+
       // Set primary tool (first tool encountered)
       if (!this.toolName) {
         this.toolName = job.toolName;
       }
-      
+
       // Check for multiple tools in same NC file (rule violation)
       if (this.toolList.size > 1) {
         this.hasMultipleTools = true;
@@ -810,7 +862,7 @@ class CompoundJob {
       toolList: Array.from(this.toolList), // All tools used (for violation detection)
       totalTime: this.totalTime, // Total operation time for this NC file
       hasMultipleTools: this.hasMultipleTools, // Rule violation flag
-      hasIssues: this.hasIssues // Any issues with this NC file
+      hasIssues: this.hasIssues, // Any issues with this NC file
     };
   }
 
@@ -833,7 +885,7 @@ class ToolInfo {
     this.usagePrograms = new Set(); // Programs where this tool is used
     this.totalUsageTime = 0;
     this.usageCount = 0;
-    
+
     // Tool specifications from toolDetails
     this.diameter = toolDetails.diameter || null;
     this.totalLength = toolDetails.totalLength || null;
@@ -848,13 +900,13 @@ class ToolInfo {
    */
   determineCategory(toolName) {
     const { toolCategories } = require("../config");
-    
+
     for (const [category, codes] of Object.entries(toolCategories)) {
-      if (codes.some(code => toolName && toolName.startsWith(code))) {
+      if (codes.some((code) => toolName && toolName.startsWith(code))) {
         return category;
       }
     }
-    return 'unknown';
+    return "unknown";
   }
 
   /**
@@ -881,7 +933,7 @@ class ToolInfo {
       usageCount: this.usageCount,
       programCount: this.usagePrograms.size,
       diameter: this.diameter,
-      totalLength: this.totalLength
+      totalLength: this.totalLength,
     };
   }
 }
