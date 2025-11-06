@@ -8,7 +8,7 @@ This guide will get you up and running with the JSON Scanner system quickly.
 
 - **Node.js** 14.x or higher ([Download here](https://nodejs.org/))
 - **Windows** 10 or higher
-- **Access** to network drives with CAD project files
+- **Access** to network drives with CNC project files
 
 ## Installation
 
@@ -22,21 +22,17 @@ cd json-scanner
 # Install dependencies
 npm install
 
-# Create required directories
-mkdir logs
-mkdir test_data
+# Test read-only functionality
+node main.js --test-readonly
 ```
 
 ### 2. Configuration
 
-Copy and edit the configuration file:
+Edit the configuration file:
 
 ```powershell
-# Copy example configuration
-copy config\Settings.example.js config\Settings.js
-
 # Edit configuration (use your preferred editor)
-notepad config\Settings.js
+notepad config.js
 ```
 
 **Essential Configuration Options:**
@@ -44,10 +40,11 @@ notepad config\Settings.js
 ```javascript
 module.exports = {
   app: {
-    autorun: true, // Enable automatic scanning
-    scanIntervalMs: 60000, // Scan every 60 seconds
-    testMode: false, // Set to false for production
-    logLevel: "info", // Logging detail level
+    autorun: false, // Manual mode by default for safety
+    testMode: true, // Use test data initially
+    usePersistentTempFolder: true, // Organized temp structure
+    userDefinedWorkingFolder: null, // Custom temp location
+    tempBaseName: "BRK CNC Management Dashboard"
   },
 
   paths: {

@@ -19,6 +19,10 @@ const config = {
     operationTimeoutWarning: 5000, // Warn if single operation takes longer than 5 seconds
     usePersistentTempFolder: true, // Use persistent temp folder with original structure
     forceReprocess: false, // true = reprocess even if result file exists, false = skip processed files
+    
+    // Read-only processing settings (like ToolManager)
+    tempBaseName: "BRK CNC Management Dashboard", // Organized temp folder name
+    userDefinedWorkingFolder: null, // User can override temp location
   },
 
   // Web app settings (for future web service)

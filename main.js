@@ -20,6 +20,7 @@ function parseArguments() {
     exportResults: null,
     listResults: false,
     preserveResults: false,
+    workingFolder: null,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -66,6 +67,10 @@ function parseArguments() {
       case "--preserve-results":
         options.preserveResults = true;
         break;
+      case "--working-folder":
+        options.workingFolder = args[i + 1];
+        i++; // Skip next argument
+        break;
       case "--help":
         showHelp();
         process.exit(0);
@@ -96,6 +101,7 @@ Options:
   --export-results <dir> Export current temp results to specified directory
   --list-results       List all result files in current temp session
   --preserve-results   Preserve results when cleaning up temp files
+  --working-folder <path> Override temp directory with user-defined working folder
   --help               Show this help message
 
 Test Mode Information:
@@ -129,19 +135,20 @@ Examples:
   node main.js --list-results (show current temp results)
   node main.js --export-results "/path/to/save" (export temp results)
   node main.js --manual --preserve-results (keep results when done)
+  node main.js --working-folder "D:/CNC_Processing" (custom temp location)
   `);
 }
 
 // Test read-only functionality
 async function testReadOnlyFunctionality() {
-  const TempFileManager = require("./utils/TempFileManager");
+  const PersistentTempManager = require("./utils/PersistentTempManager");
   const fs = require("fs");
   const path = require("path");
 
   try {
     Logger.logInfo("🧪 Starting read-only functionality test...");
 
-    const tempManager = new TempFileManager();
+    const tempManager = new PersistentTempManager();
     const testDataPath = config.getScanPath();
 
     if (!testDataPath) {
@@ -356,6 +363,19 @@ async function main() {
   try {
     const options = parseArguments();
 
+    // Apply command line overrides FIRST, before any operations
+    if (options.mode === "manual") {
+      config.app.autorun = false;
+    } else if (options.mode === "auto") {
+      config.app.autorun = true;
+    }
+
+    // Apply working folder override if provided
+    if (options.workingFolder) {
+      config.app.userDefinedWorkingFolder = options.workingFolder;
+      console.log(`📁 Using user-defined working folder: ${options.workingFolder}`);
+    }
+
     // Handle cleanup modes
     if (options.cleanup || options.cleanupStats || options.cleanupInteractive) {
       const CleanupService = require("./utils/CleanupService");
@@ -411,12 +431,6 @@ async function main() {
     Logger.logInfo("📊 Initializing data storage...");
     dataManager = new DataManager();
     await dataManager.initialize();
-    // Override config if command line options provided
-    if (options.mode === "manual") {
-      config.app.autorun = false;
-    } else if (options.mode === "auto") {
-      config.app.autorun = true;
-    }
 
     Logger.logInfo(
       `🎯 Active scan path: ${config.getScanPath() || "Will prompt user"}`

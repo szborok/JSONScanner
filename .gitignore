@@ -58,3 +58,18 @@ Thumbs.db
 # Project specific
 temp/
 *.tmp
+
+# Generated files (BRK files)
+*_BRK_fixed.json
+*_BRK_result.json
+
+# Read-only processing temp folders
+BRK_CNC_Management_Dashboard/
+"BRK CNC Management Dashboard"/
+
+# Session files
+*.session
+
+# Test artifacts
+test_output/
+test_results/

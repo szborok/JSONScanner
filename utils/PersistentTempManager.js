@@ -13,8 +13,14 @@ const config = require("../config");
 
 class PersistentTempManager {
   constructor(appName = "JSONScanner") {
-    // Create persistent temp folder structure
-    this.tempBasePath = path.join(os.tmpdir(), "BRK CNC Management Dashboard");
+    // Support user-defined working folder like ToolManager
+    if (config.app.userDefinedWorkingFolder) {
+      this.tempBasePath = path.join(config.app.userDefinedWorkingFolder, config.app.tempBaseName || "BRK CNC Management Dashboard");
+    } else {
+      // Create persistent temp folder structure
+      this.tempBasePath = path.join(os.tmpdir(), config.app.tempBaseName || "BRK CNC Management Dashboard");
+    }
+    
     this.appName = appName;
     this.appPath = path.join(this.tempBasePath, this.appName);
 
@@ -425,6 +431,34 @@ class PersistentTempManager {
       return filePath;
     } catch (error) {
       logError(`Failed to save ${fileType} file ${filename}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Copy a file to temp location (compatibility method for test functions)
+   * @param {string} sourcePath - Path to source file
+   * @param {string} fileType - Type of file ('input', 'result', 'processed', etc.)
+   * @returns {string} - Path to copied file in temp
+   */
+  async copyToTemp(sourcePath, fileType = "input") {
+    try {
+      const fileName = path.basename(sourcePath);
+      const targetDir = this.getPathForType(fileType);
+      const tempPath = path.join(targetDir, fileName);
+
+      // Ensure target directory exists
+      if (!fs.existsSync(targetDir)) {
+        fs.mkdirSync(targetDir, { recursive: true });
+      }
+
+      // Copy the file
+      fs.copyFileSync(sourcePath, tempPath);
+      
+      logInfo(`📄 Copied to temp: ${fileName} → ${fileType}`);
+      return tempPath;
+    } catch (error) {
+      logError(`Failed to copy ${sourcePath} to temp:`, error);
       throw error;
     }
   }
