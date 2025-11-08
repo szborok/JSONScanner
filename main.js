@@ -16,7 +16,6 @@ function parseArguments() {
     cleanup: false,
     cleanupStats: false,
     cleanupInteractive: false,
-    testReadOnly: false,
     exportResults: null,
     listResults: false,
     preserveResults: false,
@@ -59,9 +58,6 @@ function parseArguments() {
         break;
       case "--clear-errors":
         options.clearErrors = true;
-        break;
-      case "--test-readonly":
-        options.testReadOnly = true;
         break;
       case "--export-results":
         options.exportResults = args[i + 1];
@@ -118,7 +114,6 @@ Options:
   --project <path>     Scan specific project path (manual mode only)
   --force              Force reprocess even if result files exist
   --clear-errors       Clear fatal error markers before processing
-  --test-readonly      Test read-only functionality with temp file operations
   --export-results <dir> Export current temp results to specified directory
   --list-results       List all result files in current temp session
   --preserve-results   Preserve results when cleaning up temp files
@@ -145,12 +140,14 @@ Test Mode Information:
     - Test mode: Uses ${config.paths.test.testDataPathManual}
     - Production mode: Prompts user for path input
 
-Read-Only Safety:
-  All processing now uses temporary file copies
-  Original files are NEVER modified
-  Results are saved to temp folder by default
-  Use --export-results to copy results to permanent location
-  Use --preserve-results to archive results before temp cleanup
+Read-Only Safety (Always Active):
+  ✅ ALL input processing uses temporary file copies
+  ✅ Original files are NEVER modified or touched
+  ✅ Results are saved to organized temp structure by default
+  ✅ Use --export-results to copy results to permanent location
+  ✅ Use --preserve-results to archive results before temp cleanup
+  
+  This application is designed to be completely safe - no risk to original data.
 
 Examples:
   node main.js --manual --project "path/to/project"
@@ -159,101 +156,11 @@ Examples:
   node main.js --cleanup-stats (shows what would be deleted)
   node main.js --cleanup-interactive (asks for confirmation)
   node main.js --clear-errors
-  node main.js --test-readonly (test read-only temp file operations)
   node main.js --list-results (show current temp results)
   node main.js --export-results "/path/to/save" (export temp results)
   node main.js --manual --preserve-results (keep results when done)
   node main.js --working-folder "D:/CNC_Processing" (custom temp location)
   `);
-}
-
-// Test read-only functionality
-async function testReadOnlyFunctionality() {
-  const PersistentTempManager = require("./utils/PersistentTempManager");
-  const fs = require("fs");
-  const path = require("path");
-
-  try {
-    Logger.logInfo("🧪 Starting read-only functionality test...");
-
-    const tempManager = new PersistentTempManager();
-    const testDataPath = config.getScanPath();
-
-    if (!testDataPath) {
-      Logger.logError("No test data path available for read-only test");
-      return;
-    }
-
-    if (!fs.existsSync(testDataPath)) {
-      Logger.logError(`Test data path does not exist: ${testDataPath}`);
-      return;
-    }
-
-    Logger.logInfo(`📂 Testing with path: ${testDataPath}`);
-
-    // Find some test files
-    const testFiles = [];
-    const findFiles = (dir) => {
-      const items = fs.readdirSync(dir);
-      for (const item of items.slice(0, 3)) {
-        // Limit to first 3 items
-        const fullPath = path.join(dir, item);
-        const stats = fs.statSync(fullPath);
-
-        if (
-          stats.isFile() &&
-          (item.endsWith(".json") || item.endsWith(".txt"))
-        ) {
-          testFiles.push(fullPath);
-        } else if (stats.isDirectory() && testFiles.length < 2) {
-          try {
-            findFiles(fullPath);
-          } catch (err) {
-            // Skip directories we can't read
-          }
-        }
-
-        if (testFiles.length >= 2) break;
-      }
-    };
-
-    findFiles(testDataPath);
-
-    if (testFiles.length === 0) {
-      Logger.logWarn("No test files found in test data path");
-      return;
-    }
-
-    Logger.logInfo(`📄 Found ${testFiles.length} test file(s) to copy`);
-
-    // Test copying files to temp
-    for (const testFile of testFiles) {
-      Logger.logInfo(`📋 Testing copy: ${path.basename(testFile)}`);
-      const tempPath = await tempManager.copyToTemp(testFile);
-      Logger.logInfo(`✅ Copied to: ${tempPath}`);
-    }
-
-    // Get session info
-    const sessionInfo = tempManager.getSessionInfo();
-    Logger.logInfo(`📊 Session info:`);
-    Logger.logInfo(`   - Session ID: ${sessionInfo.sessionId}`);
-    Logger.logInfo(`   - Temp path: ${sessionInfo.sessionPath}`);
-    Logger.logInfo(`   - Tracked files: ${sessionInfo.trackedFiles}`);
-
-    // Test change detection
-    Logger.logInfo("🔍 Testing change detection...");
-    const changes = await tempManager.detectChanges();
-    Logger.logInfo(`📝 Change detection result: ${changes.summary}`);
-
-    // Cleanup
-    Logger.logInfo("🧹 Cleaning up test session...");
-    tempManager.cleanup();
-
-    Logger.logInfo("✅ Read-only functionality test completed successfully!");
-  } catch (error) {
-    Logger.logError(`❌ Read-only test failed: ${error.message}`);
-    Logger.logError(`Stack trace: ${error.stack}`);
-  }
 }
 
 // List temp results
@@ -421,13 +328,6 @@ async function main() {
         Logger.logInfo("✅ Cleanup completed successfully");
       }
 
-      process.exit(0);
-    }
-
-    // Handle read-only test mode
-    if (options.testReadOnly) {
-      Logger.logInfo("🧪 Testing read-only functionality...");
-      await testReadOnlyFunctionality();
       process.exit(0);
     }
 
