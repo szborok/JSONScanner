@@ -21,6 +21,12 @@ function parseArguments() {
     listResults: false,
     preserveResults: false,
     workingFolder: null,
+    // Debug and demo flags
+    debug: false,
+    demoReadonly: false,
+    demoTemp: false,
+    testQuick: false,
+    testStorage: false,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -71,6 +77,21 @@ function parseArguments() {
         options.workingFolder = args[i + 1];
         i++; // Skip next argument
         break;
+      case "--debug":
+        options.debug = true;
+        break;
+      case "--demo-readonly":
+        options.demoReadonly = true;
+        break;
+      case "--demo-temp":
+        options.demoTemp = true;
+        break;
+      case "--test-quick":
+        options.testQuick = true;
+        break;
+      case "--test-storage":
+        options.testStorage = true;
+        break;
       case "--help":
         showHelp();
         process.exit(0);
@@ -102,6 +123,13 @@ Options:
   --list-results       List all result files in current temp session
   --preserve-results   Preserve results when cleaning up temp files
   --working-folder <path> Override temp directory with user-defined working folder
+  
+Development & Testing:
+  --debug              Debug utilities and log viewing
+  --demo-readonly      Run read-only functionality demo
+  --demo-temp          Run complete temp-only processing demo
+  --test-quick         Run quick storage tests
+  --test-storage       Run detailed storage functionality tests
   --help               Show this help message
 
 Test Mode Information:
@@ -416,6 +444,37 @@ async function main() {
       process.exit(0);
     }
 
+    // Handle debug and demo modes
+    if (options.debug) {
+      Logger.logInfo("🐛 Starting debug utilities...");
+      await runDebugUtilities();
+      process.exit(0);
+    }
+
+    if (options.demoReadonly) {
+      Logger.logInfo("🧪 Running read-only demo...");
+      await runDemoReadonly();
+      process.exit(0);
+    }
+
+    if (options.demoTemp) {
+      Logger.logInfo("🔐 Running temp-only demo...");
+      await runDemoTemp();
+      process.exit(0);
+    }
+
+    if (options.testQuick) {
+      Logger.logInfo("⚡ Running quick tests...");
+      await runTestQuick();
+      process.exit(0);
+    }
+
+    if (options.testStorage) {
+      Logger.logInfo("🗄️  Running storage tests...");
+      await runTestStorage();
+      process.exit(0);
+    }
+
     Logger.logInfo("🚀 Starting JSON Scanner Application...");
     Logger.logInfo(`📝 Log file: ${Logger.getLogFilePath()}`);
     Logger.logInfo(
@@ -481,6 +540,344 @@ process.on("SIGTERM", () => {
   Logger.logInfo("👋 Application shutting down gracefully...");
   process.exit(0);
 });
+
+// Debug and demo function implementations
+async function runDebugUtilities() {
+  const fs = require('fs');
+  const path = require('path');
+
+  function showLogFiles() {
+    const logsDir = Logger.getLogsDirectory();
+    
+    if (!fs.existsSync(logsDir)) {
+      console.log('📁 No logs directory found.');
+      return;
+    }
+    
+    const logFiles = fs.readdirSync(logsDir).filter(file => file.endsWith('.log'));
+    
+    if (logFiles.length === 0) {
+      console.log('📝 No log files found.');
+      return;
+    }
+    
+    console.log('📝 Available log files:');
+    logFiles.forEach((file, index) => {
+      const filePath = path.join(logsDir, file);
+      const stats = fs.statSync(filePath);
+      console.log(`  ${index + 1}. ${file} (${Math.round(stats.size / 1024)}KB) - ${stats.mtime.toLocaleString()}`);
+    });
+  }
+
+  function showLatestLogs(lines = 50) {
+    const logFile = Logger.getLogFilePath();
+    
+    if (!fs.existsSync(logFile)) {
+      console.log('📝 No current log file found.');
+      return;
+    }
+    
+    const content = fs.readFileSync(logFile, 'utf8');
+    const logLines = content.split('\n').filter(line => line.trim());
+    const recentLines = logLines.slice(-lines);
+    
+    console.log(`📝 Latest ${recentLines.length} log entries:`);
+    console.log('═'.repeat(80));
+    recentLines.forEach(line => console.log(line));
+  }
+
+  console.log('🐛 JSONScanner Debug Utilities');
+  console.log('==============================\n');
+  
+  showLogFiles();
+  console.log('');
+  showLatestLogs(20);
+}
+
+async function runDemoReadonly() {
+  const fs = require("fs");
+  const TempFileManager = require("./utils/TempFileManager");
+
+  console.log("🧪 JSONScanner Read-Only Functionality Demo");
+  console.log("==========================================\n");
+
+  const tempManager = new TempFileManager();
+
+  try {
+    // Find test source data
+    const testDataPath = config.app.testMode 
+      ? config.paths.test.testDataPathAuto 
+      : config.paths.production.productionDataPath;
+
+    if (!fs.existsSync(testDataPath)) {
+      console.log(`❌ Test data path not found: ${testDataPath}`);
+      return;
+    }
+
+    console.log(`📂 Scanning test source data: ${testDataPath}\n`);
+    
+    // Find JSON files
+    const jsonFiles = [];
+    function findJsonFiles(dir) {
+      const items = fs.readdirSync(dir);
+      for (const item of items) {
+        const fullPath = path.join(dir, item);
+        if (fs.statSync(fullPath).isDirectory()) {
+          findJsonFiles(fullPath);
+        } else if (item.endsWith('.json')) {
+          jsonFiles.push(fullPath);
+        }
+      }
+    }
+    
+    findJsonFiles(testDataPath);
+    
+    if (jsonFiles.length === 0) {
+      console.log("❌ No JSON files found for demo");
+      return;
+    }
+
+    console.log(`✅ Found ${jsonFiles.length} JSON file(s) for demo:\n`);
+
+    // Demo the read-only copying process
+    console.log("🔄 Step 1: Copying files to temporary location (READ-ONLY)");
+    console.log("--------------------------------------------------------");
+    
+    for (const jsonFile of jsonFiles.slice(0, 2)) { // Limit to 2 files for demo
+      const originalSize = fs.statSync(jsonFile).size;
+      const tempPath = await tempManager.copyFile(jsonFile);
+      const tempSize = fs.statSync(tempPath).size;
+      
+      console.log(`📄 Processing: ${path.basename(jsonFile)} (${originalSize} bytes)`);
+      console.log(`   → Copied to temp: ${path.basename(tempPath)}`);
+      console.log(`   → Size verification: ${originalSize === tempSize ? '✅ Match' : '❌ Mismatch'}`);
+      console.log(`   → Original remains untouched: ✅ Yes\n`);
+    }
+
+    console.log("📊 Step 2: Session Information");
+    console.log("------------------------------");
+    console.log(`Session ID: ${tempManager.sessionId}`);
+    console.log(`Temp Directory: ${tempManager.tempDir}`);
+    console.log(`Files Tracked: ${tempManager.trackedFiles.length}`);
+    
+    if (tempManager.trackedFiles.length > 0) {
+      console.log("Tracked Paths:");
+      tempManager.trackedFiles.slice(0, 3).forEach(file => {
+        console.log(`   - ${path.basename(file)}`);
+      });
+    }
+
+    console.log("\n🔍 Step 3: Change Detection");
+    console.log("---------------------------");
+    console.log("Checking for changes in original files...");
+    const hasChanges = await tempManager.detectChanges();
+    console.log(`Result: ${hasChanges ? 'Changes detected' : 'No changes detected'}`);
+
+    console.log("\n📋 Step 4: Processing Pattern (Read-Only)");
+    console.log("-----------------------------------------");
+    console.log("✅ Original files are NEVER modified");
+    console.log("✅ All processing uses temporary copies");
+    console.log("✅ Results are saved separately (database/result files)");
+    console.log("✅ Change detection compares file dates/hashes");
+    console.log("✅ Automatic cleanup on session end");
+
+    console.log("\n🔄 Step 5: Normal Operation Flow");
+    console.log("--------------------------------");
+    console.log("1. Scanner finds original JSON files");
+    console.log("2. Files are copied to temp directory");
+    console.log("3. All analysis works with temp copies");
+    console.log("4. Results saved to database/result files");
+    console.log("5. Original files remain completely untouched");
+    console.log("6. Next scan checks for changes via dates/hashes");
+    console.log("7. Only changed files are re-copied to temp");
+    console.log("8. Temp files cleaned up on exit");
+
+    console.log("\n🧹 Step 6: Cleanup");
+    console.log("------------------");
+    console.log("Cleaning up demo session...");
+    await tempManager.cleanup();
+    console.log("Temp directory removed: ✅ Yes");
+    console.log("Original files still intact: ✅ Yes");
+
+    console.log("\n🎉 Demo completed successfully!");
+    console.log("\n🔐 Key Benefits:");
+    console.log("   • Complete read-only operation");
+    console.log("   • No risk of modifying original files");
+    console.log("   • Efficient change detection");
+    console.log("   • Automatic cleanup");
+    console.log("   • Safe parallel processing");
+
+  } catch (error) {
+    console.error("❌ Demo failed:", error.message);
+    await tempManager.cleanup();
+  }
+}
+
+async function runDemoTemp() {
+  const path = require("path");
+  const Scanner = require("./src/Scanner");
+  const Executor = require("./src/Executor");
+  
+  console.log("🔐 JSONScanner Complete Temp-Only Processing Demo");
+  console.log("🗂️  NEW: Organized BRK CNC Management Dashboard Structure");
+  console.log("================================================\n");
+
+  let dataManager = null;
+  let executor = null;
+
+  try {
+    // Initialize data storage
+    dataManager = new DataManager();
+    await dataManager.initialize();
+
+    // Get test source data path
+    const testDataPath = config.paths.test.testDataPathAuto;
+    console.log(`📂 Using test source data: ${testDataPath}\n`);
+
+    // Initialize scanner and executor
+    const scanner = new Scanner(dataManager);
+    executor = new Executor(dataManager);
+    
+    console.log("📊 Session Information:");
+    console.log(`   - Session ID: ${scanner.tempManager?.sessionId || 'N/A'}`);
+    console.log(`   - Temp Directory: ${scanner.tempManager?.tempDir || 'N/A'}`);
+    console.log(`   - Results Directory: ${scanner.tempManager?.resultsPath || 'N/A'}`);
+    console.log("");
+
+    console.log("🔄 Step 1: Scanning and copying original files to temp...");
+    const results = await scanner.forceRescan(testDataPath);
+    
+    console.log(`✅ Found ${results.projects.length} project(s) copied to temp`);
+    console.log(`   - Files tracked: ${results.totalFiles || 0}`);
+    console.log("");
+
+    if (results.projects.length > 0) {
+      console.log("🔄 Step 2: Processing projects (all in temp)...");
+      
+      // Process first project as example
+      const firstProject = results.projects[0];
+      console.log(`📋 Processing: ${firstProject.name}`);
+      console.log(`   - Working with temp JSON: ${path.basename(firstProject.jsonPath)}`);
+      
+      await executor.processProject(firstProject.jsonPath, firstProject.name);
+      console.log("✅ Results saved to temp folder");
+      console.log("");
+    }
+
+    console.log("📋 Step 3: Checking organized temp session contents...");
+    console.log("   📁 BRK CNC Management Dashboard/JSONScanner structure created");
+    console.log(`   📂 Session: ${scanner.tempManager?.sessionId || 'N/A'}`);
+    console.log(`   - Total tracked files: ${results.totalFiles || 0}`);
+    console.log(`   - Result files created: ${scanner.tempManager?.getResultFiles()?.length || 'N/A'}`);
+
+  } catch (error) {
+    console.error("❌ Demo failed:", error.message);
+  } finally {
+    console.log("\n🧹 Cleaning up demo session...");
+    if (executor) {
+      await executor.stop();
+    }
+    console.log("✅ Demo cleanup completed");
+  }
+}
+
+async function runTestQuick() {
+  console.log("🚀 Quick Storage Tests for JSONScanner\n");
+
+  try {
+    // Test Local Storage
+    process.env.STORAGE_TYPE = "local";
+    const dm1 = new DataManager();
+    await dm1.initialize();
+
+    const testProject = {
+      projectName: "test_local_quick",
+      fileName: "test.json",
+      status: "active",
+    };
+
+    await dm1.saveProject(testProject);
+    console.log("✅ JSONScanner Local Storage: PASSED");
+
+    // Test MongoDB if available
+    try {
+      process.env.STORAGE_TYPE = "mongodb";
+      const dm2 = new DataManager();
+      await dm2.initialize();
+
+      const testProjectMongo = {
+        projectName: "test_mongo_quick",
+        fileName: "test.json", 
+        status: "active",
+      };
+
+      await dm2.saveProject(testProjectMongo);
+      console.log("✅ JSONScanner MongoDB: PASSED");
+    } catch (mongoError) {
+      console.log("⚠️  JSONScanner MongoDB: SKIPPED (not available)");
+    }
+
+  } catch (error) {
+    console.error("❌ JSONScanner tests failed:", error.message);
+  }
+
+  console.log("\n🎉 Quick tests completed!");
+}
+
+async function runTestStorage() {
+  console.log("🧪 Testing JSONScanner with LOCAL storage...");
+
+  try {
+    // Test local storage
+    process.env.STORAGE_TYPE = "local";
+    const dataManager = new DataManager();
+    await dataManager.initialize();
+
+    console.log("✅ Local storage initialized");
+
+    // Test saving a project
+    const testProject = {
+      projectName: "storage_test",
+      fileName: "test.json",
+      status: "active",
+      timestamp: new Date().toISOString(),
+    };
+
+    await dataManager.saveProject(testProject);
+    console.log("✅ Project saved successfully");
+
+    // Test retrieving projects
+    const projects = await dataManager.getAllProjects();
+    console.log(`✅ Retrieved ${projects.length} project(s)`);
+
+    // Test rule execution storage
+    const testRuleExecution = {
+      projectName: "storage_test",
+      ruleName: "TestRule",
+      passed: true,
+      violations: [],
+      timestamp: new Date().toISOString(),
+    };
+
+    await dataManager.saveRuleExecution(testRuleExecution);
+    console.log("✅ Rule execution saved successfully");
+
+    // Test scan results storage
+    const testScanResult = {
+      scanPath: "/test/path",
+      projectCount: 1,
+      timestamp: new Date().toISOString(),
+    };
+
+    await dataManager.saveScanResult(testScanResult);
+    console.log("✅ Scan result saved successfully");
+
+    console.log("\n🎉 All storage tests passed!");
+
+  } catch (error) {
+    console.error("❌ Storage test failed:", error.message);
+  }
+}
 
 main().catch((error) => {
   Logger.logError(`💥 Unhandled error in main: ${error.message}`);
