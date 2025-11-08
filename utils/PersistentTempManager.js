@@ -109,7 +109,7 @@ class PersistentTempManager {
     try {
       // Calculate relative path from scan base to preserve structure
       const relativePath = path.relative(sourceBasePath, jsonFilePath);
-      const tempJsonPath = path.join(this.sessionPath, relativePath);
+      const tempJsonPath = path.join(this.inputFilesPath, relativePath);
 
       // Ensure target directory exists
       const tempDir = path.dirname(tempJsonPath);
@@ -139,7 +139,7 @@ class PersistentTempManager {
 
         for (const ncFile of ncFiles) {
           const ncRelativePath = path.relative(sourceBasePath, ncFile);
-          const tempNcPath = path.join(this.sessionPath, ncRelativePath);
+          const tempNcPath = path.join(this.inputFilesPath, ncRelativePath);
 
           // Ensure NC file directory exists
           const ncTempDir = path.dirname(tempNcPath);
