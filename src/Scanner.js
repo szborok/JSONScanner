@@ -19,17 +19,26 @@ class Scanner {
     this.projects = [];
     this.running = false;
 
+    // Determine temp base path based on test mode
+    const customTempBasePath = config.app.testMode
+      ? config.app.testProcessedDataPath
+      : null;
+
     // Choose temp manager based on configuration
     if (config.app.usePersistentTempFolder) {
       this.tempManager = new PersistentTempManager("JSONScanner");
       logInfo("Using persistent temp folder with original structure");
     } else {
-      this.tempManager = new TempFileManager("JSONScanner");
+      this.tempManager = new TempFileManager("JSONScanner", customTempBasePath);
       // Cleanup old temp sessions on startup
       TempFileManager.cleanupOldSessions("JSONScanner");
     }
 
     this.scannedPaths = new Set(); // Track what we've scanned
+
+    if (config.app.testMode) {
+      logInfo(`Test mode: Using test_processed_data for temp operations`);
+    }
   }
 
   /**
@@ -285,7 +294,10 @@ class Scanner {
 
       // Cleanup and recreate temp manager
       this.tempManager.cleanup();
-      this.tempManager = new TempFileManager();
+      const customTempBasePath = config.app.testMode
+        ? config.app.testProcessedDataPath
+        : null;
+      this.tempManager = new TempFileManager("JSONScanner", customTempBasePath);
 
       // Perform fresh scan
       await this.performScan(customPath);

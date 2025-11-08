@@ -23,6 +23,9 @@ const config = {
     // Read-only processing settings (like ToolManager)
     tempBaseName: "BRK CNC Management Dashboard", // Organized temp folder name
     userDefinedWorkingFolder: null, // User can override temp location
+
+    // Test mode temp processing settings
+    testProcessedDataPath: path.join(__dirname, "data", "test_processed_data"), // Test mode temp base path
   },
 
   // Web app settings (for future web service)

@@ -11,9 +11,17 @@ const crypto = require("crypto");
 const { logInfo, logWarn, logError } = require("./Logger");
 
 class TempFileManager {
-  constructor(appName = "JSONScanner") {
+  constructor(appName = "JSONScanner", customTempBasePath = null) {
     // Create organized hierarchy: temp/BRK CNC Management Dashboard/AppName/
-    this.tempBasePath = path.join(os.tmpdir(), "BRK CNC Management Dashboard");
+    // Use custom temp base path if provided (for test mode), otherwise use system temp
+    if (customTempBasePath) {
+      this.tempBasePath = customTempBasePath;
+    } else {
+      this.tempBasePath = path.join(
+        os.tmpdir(),
+        "BRK CNC Management Dashboard"
+      );
+    }
     this.appName = appName;
     this.appPath = path.join(this.tempBasePath, this.appName);
     this.sessionId = this.generateSessionId();
