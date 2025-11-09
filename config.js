@@ -24,8 +24,14 @@ const config = {
     tempBaseName: "BRK CNC Management Dashboard", // Organized temp folder name
     userDefinedWorkingFolder: null, // User can override temp location
 
-    // Test mode temp processing settings
-    testProcessedDataPath: path.join(__dirname, "data", "test_processed_data"), // Test mode temp base path
+    // Test mode temp processing settings - points to centralized CNC_TestData
+    testProcessedDataPath: path.join(
+      __dirname,
+      "..",
+      "CNC_TestData",
+      "working_data",
+      "jsonscanner"
+    ), // Test mode temp base path
   },
 
   // Web app settings (for future web service)
@@ -96,19 +102,21 @@ const config = {
 
   // Paths
   paths: {
-    // Test mode paths (for development and testing)
+    // Test mode paths (for development and testing) - uses centralized CNC_TestData
     test: {
       testDataPathAuto: path.join(
         __dirname,
-        "data",
-        "test_source_data",
-        "testPathHumming_auto"
+        "..",
+        "CNC_TestData",
+        "source_data",
+        "json_files"
       ),
       testDataPathManual: path.join(
         __dirname,
-        "data",
-        "test_source_data",
-        "testPathOne_manual"
+        "..",
+        "CNC_TestData",
+        "source_data",
+        "json_files"
       ),
     },
     // Production mode paths (for live operation)
@@ -116,8 +124,14 @@ const config = {
       productionDataPath: "C:\\Production\\CNC_Data", // Production CNC data directory
       manualPath: null, // Will be provided by user in manual mode
     },
-    // General paths
-    dataRoot: path.join(__dirname, "data", "test_source_data"),
+    // General paths - points to centralized test data
+    dataRoot: path.join(
+      __dirname,
+      "..",
+      "CNC_TestData",
+      "source_data",
+      "json_files"
+    ),
   },
 
   // File filtering for temp operations

@@ -13,7 +13,7 @@ JSONScanner is a Node.js-based quality control system for CNC manufacturing proj
 - **Analyzer** (`src/Analyzer.js`) - Parses project data into structured format
 - **RuleEngine** (`src/RuleEngine.js`) - Auto-discovers and executes rules from `/rules/`
 - **Project** (`src/Project.js`) - Core domain model with CompoundJobs and ToolInfo
-- **DataManager** (`src/DataManager.js`) - Wraps StorageAdapter for JSON/MongoDB persistence
+- **DataManager** (`src/DataManager.js`) - Manages local JSON file persistence
 - **Results** (`src/Results.js`) - Manages analysis output and result tracking
 
 ### Data Flow Pattern
@@ -111,9 +111,9 @@ Operations have: programName, toolName, code (G/M codes), depth, feedRate, etc.
 
 The system uses `PersistentTempManager` to maintain organized temp folders that mirror original project structure. Key for file path resolution and cleanup operations.
 
-## Storage Abstraction
+## Storage
 
-DataManager supports both local JSON files and MongoDB via StorageAdapter. MongoDB config in `config.storage` section - check connection settings when debugging data issues.
+All data is stored in local JSON files. Results are written to the organized temp structure managed by PersistentTempManager.
 
 ## Logging Conventions
 
