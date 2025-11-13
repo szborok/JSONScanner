@@ -263,6 +263,74 @@ app.get("/api/analysis/:projectId/violations", async (req, res) => {
 });
 
 /**
+ * POST /api/config
+ * Receive configuration from Dashboard and activate backend
+ */
+app.post("/api/config", async (req, res) => {
+  try {
+    const { testMode, scanPaths, workingFolder } = req.body;
+
+    if (typeof testMode !== "boolean") {
+      return res.status(400).json({
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "testMode (boolean) is required",
+        },
+      });
+    }
+
+    // Update configuration
+    config.app.testMode = testMode;
+    config.app.autorun = true; // Activate scanning
+
+    if (workingFolder) {
+      config.app.userDefinedWorkingFolder = workingFolder;
+    }
+
+    if (scanPaths?.jsonFiles) {
+      config.paths.test.testDataPathAuto = scanPaths.jsonFiles;
+    }
+
+    Logger.logInfo("Configuration updated from Dashboard", {
+      testMode,
+      autorun: true,
+      workingFolder,
+      scanPaths,
+    });
+
+    // Start Executor if not already running
+    if (!executor) {
+      Logger.logInfo("Starting Executor after config update...");
+      executor = new Executor(dataManager);
+      executor.start().catch((error) => {
+        Logger.logError("Executor error", { error: error.message });
+      });
+    }
+
+    res.json({
+      success: true,
+      message: "Configuration applied successfully",
+      config: {
+        testMode: config.app.testMode,
+        autorun: config.app.autorun,
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    Logger.logError("Failed to apply configuration", {
+      error: error.message,
+    });
+    res.status(500).json({
+      error: {
+        code: "INTERNAL_ERROR",
+        message: "Failed to apply configuration",
+        details: error.message,
+      },
+    });
+  }
+});
+
+/**
  * POST /api/projects/scan
  * Trigger manual scan (if not in auto mode)
  */

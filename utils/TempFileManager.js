@@ -8,24 +8,43 @@ const fs = require("fs");
 const path = require("path");
 const os = require("os");
 const crypto = require("crypto");
+const config = require("../config");
 const { logInfo, logWarn, logError } = require("./Logger");
 
 class TempFileManager {
   constructor(appName = "JSONScanner", customTempBasePath = null) {
     // Create organized hierarchy: temp/BRK CNC Management Dashboard/AppName/
-    // Use custom temp base path if provided (for test mode), otherwise use system temp
+    // Priority: customTempBasePath > userDefinedWorkingFolder > testProcessedDataPath > system temp
     if (customTempBasePath) {
       this.tempBasePath = customTempBasePath;
+    } else if (config.app.userDefinedWorkingFolder) {
+      // Dashboard configured working folder
+      this.tempBasePath = config.app.userDefinedWorkingFolder;
+    } else if (config.app.testMode && config.app.testProcessedDataPath) {
+      // Test mode: use BRK_CNC_CORE test-data
+      this.tempBasePath = config.app.testProcessedDataPath;
     } else {
+      // Fall back to system temp
       this.tempBasePath = path.join(
         os.tmpdir(),
         "BRK CNC Management Dashboard"
       );
     }
     this.appName = appName;
-    this.appPath = path.join(this.tempBasePath, this.appName);
-    this.sessionId = this.generateSessionId();
-    this.sessionPath = path.join(this.appPath, this.sessionId);
+    this.appPath = path.join(this.tempBasePath, "BRK CNC Management Dashboard", this.appName);
+    
+    // Use persistent folder structure (no sessions) for organized temp folders
+    this.usePersistentFolder = config.app.usePersistentTempFolder;
+    
+    if (this.usePersistentFolder) {
+      // Persistent mode: no sessions, direct app folder
+      this.sessionId = null;
+      this.sessionPath = this.appPath;
+    } else {
+      // Session mode: create unique session folders
+      this.sessionId = this.generateSessionId();
+      this.sessionPath = path.join(this.appPath, this.sessionId);
+    }
 
     // Create organized subdirectories for different types of files
     this.collectedJsonsPath = path.join(this.sessionPath, "collected_jsons");
@@ -54,12 +73,10 @@ class TempFileManager {
    */
   ensureSessionDirectory() {
     try {
-      // Create main BRK CNC Management Dashboard directory
+      // Create main temp base directory (may be system temp or configured working folder)
       if (!fs.existsSync(this.tempBasePath)) {
         fs.mkdirSync(this.tempBasePath, { recursive: true });
-        logInfo(
-          `Created BRK CNC Management Dashboard temp directory: ${this.tempBasePath}`
-        );
+        logInfo(`Created temp base directory: ${this.tempBasePath}`);
       }
 
       // Create app-specific directory
@@ -68,8 +85,8 @@ class TempFileManager {
         logInfo(`Created ${this.appName} app directory: ${this.appPath}`);
       }
 
-      // Create session directory
-      if (!fs.existsSync(this.sessionPath)) {
+      // Create session directory only in session mode
+      if (!this.usePersistentFolder && !fs.existsSync(this.sessionPath)) {
         fs.mkdirSync(this.sessionPath, { recursive: true });
         logInfo(`Created session directory: ${this.sessionPath}`);
       }
@@ -580,6 +597,14 @@ class TempFileManager {
         inputFiles: this.inputFilesPath,
       },
     };
+  }
+
+  /**
+   * Get the base path for temp operations
+   * Returns the root temp path (BRK CNC Management Dashboard parent)
+   */
+  getBasePath() {
+    return path.join(this.tempBasePath, "BRK CNC Management Dashboard");
   }
 
   /**
