@@ -9,7 +9,7 @@ const path = require("path");
 const config = {
   // Application settings
   app: {
-    testMode: false, // true = use test data paths, false = use production paths
+    testMode: true, // true = use test data paths, false = use production paths
     autorun: true, // true = automatic scanning and execution, false = manual mode
     scanIntervalMs: 60000, // How often the autorun scanner checks for new JSONs (60 seconds)
     logLevel: "info", // can be: 'debug', 'info', 'warn', 'error'
@@ -24,12 +24,14 @@ const config = {
     tempBaseName: "BRK CNC Management Dashboard", // Organized temp folder name
     userDefinedWorkingFolder: null, // User can override temp location
 
-    // Test mode temp processing settings - points to centralized CNC_TestData
+    // Test mode temp processing settings - points to centralized BRK_CNC_CORE test-data
     testProcessedDataPath: path.join(
       __dirname,
       "..",
-      "CNC_TestData",
+      "BRK_CNC_CORE",
+      "test-data",
       "working_data",
+      "BRK CNC Management Dashboard",
       "jsonscanner"
     ), // Test mode temp base path
   },
@@ -102,19 +104,21 @@ const config = {
 
   // Paths
   paths: {
-    // Test mode paths (for development and testing) - uses centralized CNC_TestData
+    // Test mode paths (for development and testing) - uses centralized BRK_CNC_CORE/test-data
     test: {
       testDataPathAuto: path.join(
         __dirname,
         "..",
-        "CNC_TestData",
+        "BRK_CNC_CORE",
+        "test-data",
         "source_data",
         "json_files"
       ),
       testDataPathManual: path.join(
         __dirname,
         "..",
-        "CNC_TestData",
+        "BRK_CNC_CORE",
+        "test-data",
         "source_data",
         "json_files"
       ),
@@ -128,7 +132,8 @@ const config = {
     dataRoot: path.join(
       __dirname,
       "..",
-      "CNC_TestData",
+      "BRK_CNC_CORE",
+      "test-data",
       "source_data",
       "json_files"
     ),

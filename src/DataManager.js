@@ -99,46 +99,79 @@ class DataManager {
         return [];
       }
 
-      // Find all session directories
-      const sessions = fs
-        .readdirSync(tempBasePath)
-        .filter((file) =>
-          fs.statSync(path.join(tempBasePath, file)).isDirectory()
-        );
-
       const allProjects = [];
+      let resultsDir;
 
-      // Scan each session for result files
-      for (const session of sessions) {
-        const resultsDir = path.join(tempBasePath, session, "results");
+      // Check for persistent folder structure (BRK CNC Management Dashboard/JSONScanner/results)
+      if (config.app.usePersistentTempFolder) {
+        resultsDir = path.join(tempBasePath, "JSONScanner", "results");
 
-        if (!fs.existsSync(resultsDir)) {
-          continue;
+        if (fs.existsSync(resultsDir)) {
+          const resultFiles = fs
+            .readdirSync(resultsDir)
+            .filter((file) => file.endsWith("_BRK_result.json"));
+
+          for (const file of resultFiles) {
+            try {
+              const filePath = path.join(resultsDir, file);
+              const data = JSON.parse(fs.readFileSync(filePath, "utf8"));
+
+              const projectName = file.replace("_BRK_result.json", "");
+              allProjects.push({
+                id: projectName,
+                name: projectName,
+                status: this._determineStatus(data),
+                operationCount: data.summary?.totalOperations || 0,
+                ncFileCount: data.summary?.totalNCFiles || 0,
+                timestamp:
+                  data.timestamp || fs.statSync(filePath).mtime.toISOString(),
+                violations: data.violations || [],
+              });
+            } catch (error) {
+              logWarn(`Failed to read result file ${file}:`, error.message);
+            }
+          }
         }
+      } else {
+        // Find all session directories (old structure)
+        const sessions = fs
+          .readdirSync(tempBasePath)
+          .filter((file) =>
+            fs.statSync(path.join(tempBasePath, file)).isDirectory()
+          );
 
-        const resultFiles = fs
-          .readdirSync(resultsDir)
-          .filter((file) => file.endsWith("_BRK_result.json"));
+        // Scan each session for result files
+        for (const session of sessions) {
+          resultsDir = path.join(tempBasePath, session, "results");
 
-        for (const file of resultFiles) {
-          try {
-            const filePath = path.join(resultsDir, file);
-            const data = JSON.parse(fs.readFileSync(filePath, "utf8"));
+          if (!fs.existsSync(resultsDir)) {
+            continue;
+          }
 
-            const projectName = file.replace("_BRK_result.json", "");
-            allProjects.push({
-              id: projectName,
-              name: projectName,
-              status: this._determineStatus(data),
-              operationCount: data.summary?.totalOperations || 0,
-              ncFileCount: data.summary?.totalNCFiles || 0,
-              timestamp:
-                data.timestamp || fs.statSync(filePath).mtime.toISOString(),
-              violations: data.violations || [],
-              session: session,
-            });
-          } catch (error) {
-            logWarn(`Failed to read result file ${file}:`, error.message);
+          const resultFiles = fs
+            .readdirSync(resultsDir)
+            .filter((file) => file.endsWith("_BRK_result.json"));
+
+          for (const file of resultFiles) {
+            try {
+              const filePath = path.join(resultsDir, file);
+              const data = JSON.parse(fs.readFileSync(filePath, "utf8"));
+
+              const projectName = file.replace("_BRK_result.json", "");
+              allProjects.push({
+                id: projectName,
+                name: projectName,
+                status: this._determineStatus(data),
+                operationCount: data.summary?.totalOperations || 0,
+                ncFileCount: data.summary?.totalNCFiles || 0,
+                timestamp:
+                  data.timestamp || fs.statSync(filePath).mtime.toISOString(),
+                violations: data.violations || [],
+                session: session,
+              });
+            } catch (error) {
+              logWarn(`Failed to read result file ${file}:`, error.message);
+            }
           }
         }
       }
@@ -165,12 +198,23 @@ class DataManager {
       const TempFileManager = require("../utils/TempFileManager");
       const tempManager = new TempFileManager();
       const tempBasePath = tempManager.getBasePath();
-      const resultPath = path.join(
-        tempBasePath,
-        project.session,
-        "results",
-        `${projectId}_BRK_result.json`
-      );
+      
+      let resultPath;
+      if (config.app.usePersistentTempFolder) {
+        resultPath = path.join(
+          tempBasePath,
+          "JSONScanner",
+          "results",
+          `${projectId}_BRK_result.json`
+        );
+      } else {
+        resultPath = path.join(
+          tempBasePath,
+          project.session,
+          "results",
+          `${projectId}_BRK_result.json`
+        );
+      }
 
       if (fs.existsSync(resultPath)) {
         const fullData = JSON.parse(fs.readFileSync(resultPath, "utf8"));
